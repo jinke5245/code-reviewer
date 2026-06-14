@@ -1,0 +1,22 @@
+review:dogfooding:
+  stage: review
+  image: node:22-bookworm-slim
+  cache:
+    key: pnpm-$CI_COMMIT_REF_SLUG
+    fallback_keys:
+      - pnpm-$CI_DEFAULT_BRANCH
+    paths:
+      - $PNPM_STORE_PATH
+  before_script:
+    - corepack enable
+    - pnpm config set store-dir $PNPM_STORE_PATH
+    - pnpm install --frozen-lockfile
+  script:
+    - pnpm run build
+    - pnpm run bundle
+    - node dist/cli.js review
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: manual
+      allow_failure: true
+    - when: never

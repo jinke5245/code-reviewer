@@ -1,0 +1,20 @@
+{
+  "files.insertFinalNewline": true,
+  "yaml.customTags": ["!reference sequence"],
+  "json.schemas": [
+    {
+      "fileMatch": [".codereviewer.json", ".codereviewer.jsonc"],
+      "url": "./.schemas/code-reviewer.schema.json"
+    }
+  ],
+  "yaml.schemas": {
+    ".schemas/code-reviewer.schema.json": [
+      ".codereviewer.yml",
+      ".codereviewer.yaml"
+    ],
+    "https://gitlab.com/gitlab-org/gitlab/-/raw/master/app/assets/javascripts/editor/schema/ci.json": [
+      ".gitlab-ci.yml",
+      ".gitlab/ci/*.yml"
+    ]
+  }
+}

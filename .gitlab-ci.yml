@@ -1,0 +1,10 @@
+stages:
+  - lint
+  - test
+  - review
+
+variables:
+  PNPM_STORE_PATH: .pnpm-store
+
+include:
+  - local: .gitlab/ci/*.yml

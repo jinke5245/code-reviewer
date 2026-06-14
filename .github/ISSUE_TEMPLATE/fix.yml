@@ -1,0 +1,81 @@
+name: Fix
+description: Report incorrect behavior, regressions, or broken workflows.
+title: "fix: "
+labels: []
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form when existing behavior is wrong, broken, flaky, confusing, or regressed from the intended workflow.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part of the project does this fix affect most?
+      options:
+        - CLI
+        - Review engine
+        - Model integration
+        - GitLab platform
+        - GitHub platform
+        - Configuration
+        - Skills and tools
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Describe the incorrect behavior and why it needs to be fixed.
+      placeholder: Include links to related discussions, logs, screenshots, or examples when useful.
+    validations:
+      required: true
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: Expected Behavior
+      description: Describe what should happen instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Provide the smallest reliable way to reproduce the issue, if known.
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: false
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Add relevant versions, CI context, provider details, platform, or repository setup.
+      placeholder: |
+        - Code Reviewer version:
+        - Node.js version:
+        - Platform:
+        - Provider/model:
+    validations:
+      required: false
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Acceptance Criteria
+      description: List observable conditions that must be true before this fix is complete.
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: true
+  - type: textarea
+    id: additional-notes
+    attributes:
+      label: Additional Notes
+      description: Add constraints, compatibility notes, suspected causes, follow-up ideas, or references that may help implementation and review.
+    validations:
+      required: false

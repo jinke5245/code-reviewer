@@ -1,0 +1,58 @@
+name: Feature
+description: Propose a new capability or user-facing improvement.
+title: "feat: "
+labels: []
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for new capabilities, workflow improvements, or behavior that expands what Code Reviewer can do.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part of the project does this feature affect most?
+      options:
+        - CLI
+        - Review engine
+        - Model integration
+        - GitLab platform
+        - GitHub platform
+        - Configuration
+        - Skills and tools
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: background
+    attributes:
+      label: Background
+      description: Describe the problem, user need, or project context that motivates this feature.
+      placeholder: Include links to related discussions, logs, screenshots, or examples when useful.
+    validations:
+      required: true
+  - type: textarea
+    id: goals
+    attributes:
+      label: Goals
+      description: Describe the intended outcome. Focus on what should change, not implementation details.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Acceptance Criteria
+      description: List observable conditions that must be true before this feature is complete.
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: true
+  - type: textarea
+    id: additional-notes
+    attributes:
+      label: Additional Notes
+      description: Add constraints, risks, non-goals, follow-up ideas, or references that may help implementation and review.
+    validations:
+      required: false

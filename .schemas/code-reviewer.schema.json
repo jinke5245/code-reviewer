@@ -1,0 +1,224 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/jinke5245/code-reviewer/schemas/code-reviewer.schema.json",
+  "title": "Code Reviewer configuration",
+  "description": "Configuration accepted by .codereviewer.yml, .codereviewer.yaml, .codereviewer.json, .codereviewer.jsonc, package.json#codereviewer, pyproject.toml#[tool.codereviewer], and Cargo.toml#[package.metadata.codereviewer].",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "review": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "maxRounds": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 12,
+          "description": "Maximum model/tool review loop rounds before returning the final report."
+        }
+      }
+    },
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "provider": {
+          "const": "openai-compatible",
+          "default": "openai-compatible",
+          "description": "Model provider implementation. Only OpenAI-compatible chat completions are supported today."
+        },
+        "baseUrl": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z][A-Za-z0-9+.-]*://[^\\s]+$",
+          "description": "OpenAI-compatible base URL. Defaults to OPENAI_BASE_URL, then the public OpenAI API base URL."
+        },
+        "apiKeyEnv": {
+          "type": "string",
+          "minLength": 1,
+          "default": "OPENAI_API_KEY",
+          "description": "Environment variable that contains the model API key."
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Model name. Defaults to OPENAI_MODEL."
+        },
+        "temperature": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 2
+        },
+        "maxOutputTokens": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "timeoutMs": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 300000,
+          "description": "Per-request model timeout in milliseconds."
+        },
+        "responseFormat": {
+          "type": "string",
+          "enum": ["auto", "json_schema", "json_object", "off"],
+          "default": "auto",
+          "description": "OpenAI-compatible response_format mode for final review JSON. Auto tries json_schema, falls back to json_object, then omits response_format when the provider rejects both structured response formats. Use off to always rely on prompt-only JSON output."
+        }
+      }
+    },
+    "gitlab": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "tokenEnv": {
+          "type": "string",
+          "minLength": 1,
+          "default": "GITLAB_TOKEN",
+          "description": "Environment variable that contains the GitLab token. The default GITLAB_TOKEN falls back to GL_TOKEN when unset or blank."
+        },
+        "publish": {
+          "type": "string",
+          "enum": ["dry-run", "summary", "inline"],
+          "default": "dry-run",
+          "description": "How review findings are published."
+        },
+        "failOnSeverity": {
+          "type": "string",
+          "enum": ["none", "low", "medium", "high"],
+          "default": "none",
+          "description": "Minimum finding severity that should fail the review job."
+        }
+      }
+    },
+    "prompts": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "system": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Repository-relative path to an additional system prompt file."
+        },
+        "review": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Repository-relative path to an additional review prompt file."
+        },
+        "extraRules": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "templates": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Repository-relative path to a Markdown template used for GitLab summary review notes."
+        },
+        "inline": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Repository-relative path to a Markdown template used for inline GitLab discussion comments."
+        }
+      }
+    },
+    "tools": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "array",
+          "default": [
+            "read_diff",
+            "read_file",
+            "repo_search",
+            "read_gitlab_mr",
+            "read_gitlab_issue",
+            "list_gitlab_issues",
+            "list_gitlab_mrs",
+            "read_gitlab_mr_discussions"
+          ],
+          "items": {
+            "$ref": "#/definitions/toolName"
+          }
+        },
+        "limits": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "maxToolCalls": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 120
+            },
+            "maxBytesPerToolResult": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1000000
+            },
+            "maxTotalContextBytes": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 8000000
+            },
+            "timeoutMs": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 60000
+            }
+          }
+        },
+        "permissions": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "readRepo": {
+              "type": "boolean",
+              "default": true
+            },
+            "readGitLab": {
+              "type": "boolean",
+              "default": true
+            },
+            "shell": {
+              "type": "boolean",
+              "default": false
+            },
+            "network": {
+              "type": "boolean",
+              "default": false
+            },
+            "write": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "toolName": {
+      "type": "string",
+      "enum": [
+        "read_diff",
+        "read_file",
+        "repo_search",
+        "read_gitlab_mr",
+        "read_gitlab_issue",
+        "list_gitlab_issues",
+        "list_gitlab_mrs",
+        "read_gitlab_mr_discussions"
+      ]
+    }
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "skills": {
+    "github-workflow": {
+      "source": "jinke5245/skills",
+      "sourceType": "github",
+      "skillPath": "skills/github-workflow/SKILL.md",
+      "computedHash": "7835e2c86495a096ee90de7ecce89f614db6769c0af8474a51ff5fdb77149547"
+    },
+    "gitlab-workflow": {
+      "source": "jinke5245/skills",
+      "sourceType": "github",
+      "skillPath": "skills/gitlab-workflow/SKILL.md",
+      "computedHash": "3b1bdcdcf7844bb291d219c183dba119a493ae9ffbca0a4840a582e82528c7ee"
+    }
+  }
+}

@@ -1,0 +1,5 @@
+.agents/
+.worktrees/
+dist/
+node_modules/
+pnpm-lock.yaml

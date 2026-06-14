@@ -1,0 +1,58 @@
+name: Maintenance
+description: Track upkeep for docs, tooling, dependencies, CI, templates, or cleanup.
+title: "chore: "
+labels: []
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for repository upkeep such as stale docs, tooling, dependencies, CI, templates, scripts, or cleanup.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which maintenance area is this mostly about?
+      options:
+        - CI/CD
+        - Dependencies
+        - Documentation
+        - Templates
+        - Release
+        - Tooling
+        - Tests
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: background
+    attributes:
+      label: Background
+      description: Describe what needs upkeep and why it matters.
+      placeholder: Include links to related discussions, logs, screenshots, or examples when useful.
+    validations:
+      required: true
+  - type: textarea
+    id: goals
+    attributes:
+      label: Goals
+      description: Describe the maintenance outcome and intended scope. Keep this limited to the upkeep task.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Acceptance Criteria
+      description: List observable conditions that must be true before this maintenance issue is complete.
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: true
+  - type: textarea
+    id: additional-notes
+    attributes:
+      label: Additional Notes
+      description: Add constraints, timing concerns, compatibility notes, follow-up ideas, or references that may help implementation and review.
+    validations:
+      required: false
