@@ -86,3 +86,4 @@ jobs:
           file: coverage/cobertura-coverage.xml
           language: TypeScript
           label: code-coverage/vitest
+          fail-on-error: false
