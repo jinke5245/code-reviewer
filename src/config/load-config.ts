@@ -5,7 +5,7 @@ import {
   parse as parseJsonc,
   printParseErrorCode,
   type ParseError,
-} from "jsonc-parser";
+} from "jsonc-parser/lib/esm/main.js";
 import { parse as parseToml } from "smol-toml";
 import { parse as parseYaml } from "yaml";
 import { ZodError } from "zod";

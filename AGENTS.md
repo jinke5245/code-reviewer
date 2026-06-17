@@ -21,6 +21,8 @@ These instructions apply to the whole repository.
   into the same change.
 - Keep unit tests next to the source they cover.
 - Put CLI and end-to-end behavior tests in `tests/`.
+- Do not write tests that scan repository file contents or manifest fields;
+  assert behavior through the relevant API, CLI, or packaging workflow instead.
 - Prefer small, focused modules over large catch-all files.
 - Use the project-local `gitlab-workflow` skill only when the user explicitly
   asks to use the GitLab workflow.
