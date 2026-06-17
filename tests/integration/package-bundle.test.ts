@@ -84,9 +84,10 @@ describe("package bundle", () => {
       },
     );
     const dependencyTree = JSON.parse(dependencyTreeOutput) as NpmPackageTree;
-    expect(
-      dependencyTree.dependencies?.["@jinke5245/code-reviewer"]?.dependencies ??
-        {},
-    ).toEqual({});
-  });
+    const installedPackage =
+      dependencyTree.dependencies?.["@jinke5245/code-reviewer"];
+
+    expect(installedPackage).toBeDefined();
+    expect(installedPackage?.dependencies ?? {}).toEqual({});
+  }, 60_000);
 });
