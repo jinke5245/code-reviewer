@@ -181,19 +181,11 @@ jobs:
       - name: Bundle CLI
         run: pnpm bundle
 
-      - name: Prepare GitHub PR event
-        env:
-          PR_NUMBER: ${{ needs.resolve.outputs.dogfood_pr_number }}
-        run: |
-          set -euo pipefail
-          printf '{"number":%s}\n' "$PR_NUMBER" > "$RUNNER_TEMP/codereviewer-github-event.json"
-
       - name: Dogfood GitHub PR review
         timeout-minutes: 20
         run: node dist/cli.js review --verbose
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          GITHUB_EVENT_PATH: ${{ runner.temp }}/codereviewer-github-event.json
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL }}
           OPENAI_MODEL: ${{ secrets.OPENAI_MODEL }}

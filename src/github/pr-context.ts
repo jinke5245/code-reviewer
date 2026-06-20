@@ -162,15 +162,33 @@ function readGitHubEvent(eventPath: string | undefined): unknown {
 function readPullRequestNumber(event: unknown): number {
   const data = asRecord(event, "GitHub event");
   const pullRequest = data.pull_request;
+  const inputs = data.inputs;
   const value =
     typeof pullRequest === "object" &&
     pullRequest !== null &&
     !Array.isArray(pullRequest)
       ? (pullRequest as Record<string, unknown>).number
       : data.number;
+  const workflowDispatchValue =
+    typeof inputs === "object" && inputs !== null && !Array.isArray(inputs)
+      ? (inputs as Record<string, unknown>).pr_number
+      : undefined;
+  const pullRequestNumber = value === undefined ? workflowDispatchValue : value;
 
-  if (typeof value === "number" && Number.isSafeInteger(value) && value > 0) {
-    return value;
+  if (
+    typeof pullRequestNumber === "number" &&
+    Number.isSafeInteger(pullRequestNumber) &&
+    pullRequestNumber > 0
+  ) {
+    return pullRequestNumber;
+  }
+
+  if (typeof pullRequestNumber === "string") {
+    const parsedNumber = Number(pullRequestNumber);
+
+    if (Number.isSafeInteger(parsedNumber) && parsedNumber > 0) {
+      return parsedNumber;
+    }
   }
 
   throw new Error(

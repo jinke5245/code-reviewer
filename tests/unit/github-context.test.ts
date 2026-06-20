@@ -14,7 +14,10 @@ describe("readGitHubPullRequestEnvironment", () => {
   it("reads GitHub Actions pull request variables and configured token", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "codereviewer-github-event-"));
     const eventPath = join(cwd, "event.json");
-    await writeFile(eventPath, JSON.stringify({ pull_request: { number: 12 } }));
+    await writeFile(
+      eventPath,
+      JSON.stringify({ pull_request: { number: 12 } }),
+    );
 
     expect(
       readGitHubPullRequestEnvironment({
@@ -37,6 +40,28 @@ describe("readGitHubPullRequestEnvironment", () => {
     });
   });
 
+  it("reads workflow_dispatch pr_number inputs from the GitHub event", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "codereviewer-github-event-"));
+    const eventPath = join(cwd, "event.json");
+    await writeFile(eventPath, JSON.stringify({ inputs: { pr_number: "12" } }));
+
+    expect(
+      readGitHubPullRequestEnvironment({
+        tokenEnv: "GITHUB_TOKEN",
+        env: {
+          GITHUB_ACTIONS: "true",
+          GITHUB_REPOSITORY: "acme/repo",
+          GITHUB_EVENT_PATH: eventPath,
+          GITHUB_TOKEN: "secret-token",
+        },
+      }),
+    ).toMatchObject({
+      owner: "acme",
+      repo: "repo",
+      pullNumber: 12,
+    });
+  });
+
   it("reports missing GitHub environment variables with clear names", () => {
     expect(() =>
       readGitHubPullRequestEnvironment({
@@ -54,7 +79,10 @@ describe("collectGitHubPullRequestContext", () => {
     const cwd = await mkdtemp(join(tmpdir(), "codereviewer-github-event-"));
     const eventPath = join(cwd, "event.json");
     const calls: string[] = [];
-    await writeFile(eventPath, JSON.stringify({ pull_request: { number: 12 } }));
+    await writeFile(
+      eventPath,
+      JSON.stringify({ pull_request: { number: 12 } }),
+    );
 
     const client: GitHubPullRequestClient = {
       getPullRequest(owner, repo, pullNumber) {
