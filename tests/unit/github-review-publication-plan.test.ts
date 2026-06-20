@@ -153,6 +153,40 @@ describe("createGitHubReviewPublicationPlan", () => {
     });
   });
 
+  it("uses the current PR file path for old-side comments on renamed files", () => {
+    const context = createContext([
+      {
+        oldPath: "src/old-name.ts",
+        newPath: "src/new-name.ts",
+        diff: "@@ -1,1 +1,1 @@\n-old line\n+new line",
+        newFile: false,
+        renamedFile: true,
+        deletedFile: false,
+      },
+    ]);
+
+    const plan = createGitHubReviewPublicationPlan({
+      context,
+      publishMode: "inline",
+      report: createReport([
+        createFinding({
+          path: "src/old-name.ts",
+          side: "old",
+          code: "old line",
+          startLine: 1,
+          endLine: 1,
+        }),
+      ]),
+    });
+
+    expect(plan.inlineFindings[0]?.position).toEqual({
+      commitId: "head-sha",
+      path: "src/new-name.ts",
+      side: "LEFT",
+      line: 1,
+    });
+  });
+
   it("keeps unmapped findings out of inline comments", () => {
     const plan = createGitHubReviewPublicationPlan({
       context: createContext([]),

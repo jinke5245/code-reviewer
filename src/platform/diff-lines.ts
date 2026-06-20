@@ -31,6 +31,10 @@ export function parseUnifiedDiffLines(diff: string): DiffLine[] {
       continue;
     }
 
+    if (diffLine.length === 0) {
+      continue;
+    }
+
     if (diffLine.startsWith("\\")) {
       continue;
     }

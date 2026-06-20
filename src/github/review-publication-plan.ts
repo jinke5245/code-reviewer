@@ -162,19 +162,16 @@ export function mapFindingToGitHubPosition({
     return undefined;
   }
 
-  const path =
-    finding.side === "old" ? changedFile.oldPath : changedFile.newPath;
-
   return finding.startLine === finding.endLine
     ? {
         commitId: context.pullRequest.headSha,
-        path,
+        path: changedFile.newPath,
         side: githubSide,
         line: endLine,
       }
     : {
         commitId: context.pullRequest.headSha,
-        path,
+        path: changedFile.newPath,
         side: githubSide,
         startLine,
         startSide: githubSide,
