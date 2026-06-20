@@ -996,7 +996,7 @@ describe("createCli", () => {
     expect(exitCodes).toEqual([]);
   });
 
-  it("reports missing GitLab CI environment variables in dry-run mode", async () => {
+  it("reports missing provider context when only a GitLab token is present", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "codereviewer-cli-"));
     const configPath = await writeReviewConfig(cwd);
 
@@ -1020,9 +1020,7 @@ describe("createCli", () => {
           },
         },
       ),
-    ).rejects.toThrow(
-      /Missing GitLab merge request environment variables: CI_API_V4_URL, CI_PROJECT_ID, CI_MERGE_REQUEST_IID/,
-    );
+    ).rejects.toThrow(/Cannot detect review provider/);
   });
 
   it("passes invalid model tool-call arguments back to the model as tool errors", async () => {

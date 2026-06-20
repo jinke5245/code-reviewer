@@ -19,13 +19,12 @@ export function resolveReviewProviderName({
     hasText(env.CI_API_V4_URL) &&
     hasText(env.CI_PROJECT_ID) &&
     hasText(env.CI_MERGE_REQUEST_IID);
-  const hasGitLabToken = hasText(env.GITLAB_TOKEN) || hasText(env.GL_TOKEN);
 
   if (hasGitHub && !hasGitLab) {
     return "github";
   }
 
-  if ((hasGitLab || hasGitLabToken) && !hasGitHub) {
+  if (hasGitLab && !hasGitHub) {
     return "gitlab";
   }
 

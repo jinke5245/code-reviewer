@@ -497,6 +497,31 @@ describe("built-in read-only tools", () => {
     ]);
   });
 
+  it("does not read GitHub comments from another pull request", async () => {
+    const fetchMock = vi.fn<typeof fetch>();
+    globalThis.fetch = fetchMock;
+    const runner = createToolRunner({
+      cwd: await mkdtemp(join(tmpdir(), "codereviewer-tools-")),
+      context: createGitHubContext(),
+      github: {
+        tokenEnv: "GITHUB_TOKEN",
+        env: {
+          GITHUB_TOKEN: "secret-token",
+        },
+      },
+    });
+
+    await expect(
+      runner.execute({
+        name: "read_github_pr_comments",
+        arguments: {
+          number: 99,
+        },
+      }),
+    ).rejects.toThrow();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("denies GitHub tools when platform reads are disabled", async () => {
     const runner = createToolRunner({
       cwd: await mkdtemp(join(tmpdir(), "codereviewer-tools-")),

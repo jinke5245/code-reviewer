@@ -37,6 +37,17 @@ describe("resolveReviewProviderName", () => {
     ).toBe("gitlab");
   });
 
+  it("does not detect GitLab from token presence without merge request CI", () => {
+    expect(() =>
+      resolveReviewProviderName({
+        config: { provider: "auto" },
+        env: {
+          GITLAB_TOKEN: "secret-token",
+        },
+      }),
+    ).toThrow(/Cannot detect review provider/);
+  });
+
   it("rejects ambiguous auto-detection", () => {
     expect(() =>
       resolveReviewProviderName({

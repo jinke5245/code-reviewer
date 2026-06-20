@@ -6,7 +6,6 @@ import type { ToolImplementation } from "../types.js";
 
 const inputSchema = z
   .object({
-    number: z.number().int().positive().optional(),
     limit: z.number().int().positive().max(100).default(100),
   })
   .strict();
@@ -23,20 +22,19 @@ export const readGitHubPrCommentsTool: ToolImplementation = {
       );
     }
 
-    const pullNumber = input.number ?? github.pullNumber;
     const client = createGitHubPullRequestCommentsClient({
       apiUrl: github.apiUrl,
       token: readGitHubToolToken(runtime),
     });
     const [issueComments, reviewComments] = await Promise.all([
-      client.listIssueComments(github.owner, github.repo, pullNumber),
-      client.listReviewComments(github.owner, github.repo, pullNumber),
+      client.listIssueComments(github.owner, github.repo, github.pullNumber),
+      client.listReviewComments(github.owner, github.repo, github.pullNumber),
     ]);
 
     return {
       owner: github.owner,
       repo: github.repo,
-      pullNumber,
+      pullNumber: github.pullNumber,
       issueComments: issueComments.slice(0, input.limit),
       reviewComments: reviewComments.slice(0, input.limit),
     };
