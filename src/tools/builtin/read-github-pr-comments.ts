@@ -27,16 +27,20 @@ export const readGitHubPrCommentsTool: ToolImplementation = {
       token: readGitHubToolToken(runtime),
     });
     const [issueComments, reviewComments] = await Promise.all([
-      client.listIssueComments(github.owner, github.repo, github.pullNumber),
-      client.listReviewComments(github.owner, github.repo, github.pullNumber),
+      client.listIssueComments(github.owner, github.repo, github.pullNumber, {
+        limit: input.limit,
+      }),
+      client.listReviewComments(github.owner, github.repo, github.pullNumber, {
+        limit: input.limit,
+      }),
     ]);
 
     return {
       owner: github.owner,
       repo: github.repo,
       pullNumber: github.pullNumber,
-      issueComments: issueComments.slice(0, input.limit),
-      reviewComments: reviewComments.slice(0, input.limit),
+      issueComments,
+      reviewComments,
     };
   },
 };

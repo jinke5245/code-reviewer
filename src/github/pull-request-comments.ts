@@ -33,16 +33,22 @@ export type GitHubReviewComment = GitHubIssueComment & {
   startLine?: number;
 };
 
+export type GitHubPullRequestCommentsListOptions = {
+  limit?: number;
+};
+
 export type GitHubPullRequestCommentsClient = {
   listIssueComments: (
     owner: string,
     repo: string,
     pullNumber: number,
+    options?: GitHubPullRequestCommentsListOptions,
   ) => Promise<GitHubIssueComment[]>;
   listReviewComments: (
     owner: string,
     repo: string,
     pullNumber: number,
+    options?: GitHubPullRequestCommentsListOptions,
   ) => Promise<GitHubReviewComment[]>;
   createIssueComment: (
     owner: string,
@@ -106,30 +112,76 @@ export function createGitHubPullRequestCommentsClient({
   });
 
   return {
-    async listIssueComments(owner, repo, pullNumber) {
+    async listIssueComments(owner, repo, pullNumber, options = {}) {
       const path = `/repos/${encodePathSegment(owner)}/${encodePathSegment(repo)}/issues/${String(pullNumber)}/comments`;
-      const items = await withGitHubApiError(path, () =>
-        octokit.paginate(octokit.rest.issues.listComments, {
+      const limit = readCommentListLimit(options);
+      const items = await withGitHubApiError(path, async () => {
+        const request = {
           owner,
           repo,
           issue_number: pullNumber,
-          per_page: 100,
-        }),
-      );
+          per_page: readCommentsPerPage(limit),
+        };
+
+        if (limit === undefined) {
+          return await octokit.paginate(
+            octokit.rest.issues.listComments,
+            request,
+          );
+        }
+
+        const limitedItems: unknown[] = [];
+
+        for await (const response of octokit.paginate.iterator(
+          octokit.rest.issues.listComments,
+          request,
+        )) {
+          limitedItems.push(...response.data);
+
+          if (limitedItems.length >= limit) {
+            break;
+          }
+        }
+
+        return limitedItems.slice(0, limit);
+      });
 
       return items.map(parseIssueComment);
     },
 
-    async listReviewComments(owner, repo, pullNumber) {
+    async listReviewComments(owner, repo, pullNumber, options = {}) {
       const path = `/repos/${encodePathSegment(owner)}/${encodePathSegment(repo)}/pulls/${String(pullNumber)}/comments`;
-      const items = await withGitHubApiError(path, () =>
-        octokit.paginate(octokit.rest.pulls.listReviewComments, {
+      const limit = readCommentListLimit(options);
+      const items = await withGitHubApiError(path, async () => {
+        const request = {
           owner,
           repo,
           pull_number: pullNumber,
-          per_page: 100,
-        }),
-      );
+          per_page: readCommentsPerPage(limit),
+        };
+
+        if (limit === undefined) {
+          return await octokit.paginate(
+            octokit.rest.pulls.listReviewComments,
+            request,
+          );
+        }
+
+        const limitedItems: unknown[] = [];
+
+        for await (const response of octokit.paginate.iterator(
+          octokit.rest.pulls.listReviewComments,
+          request,
+        )) {
+          limitedItems.push(...response.data);
+
+          if (limitedItems.length >= limit) {
+            break;
+          }
+        }
+
+        return limitedItems.slice(0, limit);
+      });
 
       return items.map(parseReviewComment);
     },
@@ -301,6 +353,24 @@ function parseIssueComment(value: unknown): GitHubIssueComment {
     body: readString(data, "body", "GitHub API"),
     ...readSharedCommentFields(data),
   };
+}
+
+function readCommentListLimit({
+  limit,
+}: GitHubPullRequestCommentsListOptions): number | undefined {
+  if (limit === undefined) {
+    return undefined;
+  }
+
+  if (!Number.isSafeInteger(limit) || limit <= 0) {
+    throw new Error("Expected GitHub comments limit to be a positive integer");
+  }
+
+  return limit;
+}
+
+function readCommentsPerPage(limit: number | undefined): number {
+  return limit === undefined ? 100 : Math.min(limit, 100);
 }
 
 function parseReviewComment(value: unknown): GitHubReviewComment {

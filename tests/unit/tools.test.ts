@@ -522,6 +522,97 @@ describe("built-in read-only tools", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("stops paginating GitHub comments after reaching the requested limit", async () => {
+    const requests: string[] = [];
+    const fetchMock: typeof fetch = (input, init) => {
+      const request = new Request(input, init);
+      requests.push(request.url);
+
+      if (
+        request.url ===
+        "https://api.github.test/repos/acme/repo/issues/12/comments?per_page=1"
+      ) {
+        return Promise.resolve(
+          jsonResponse(
+            [
+              {
+                id: 101,
+                body: "Summary comment",
+              },
+            ],
+            {
+              link: '<https://api.github.test/repos/acme/repo/issues/12/comments?per_page=1&page=2>; rel="next"',
+            },
+          ),
+        );
+      }
+
+      if (
+        request.url ===
+        "https://api.github.test/repos/acme/repo/pulls/12/comments?per_page=1"
+      ) {
+        return Promise.resolve(
+          jsonResponse(
+            [
+              {
+                id: 201,
+                body: "Inline comment",
+              },
+            ],
+            {
+              link: '<https://api.github.test/repos/acme/repo/pulls/12/comments?per_page=1&page=2>; rel="next"',
+            },
+          ),
+        );
+      }
+
+      if (request.url.includes("page=2")) {
+        return Promise.resolve(
+          jsonResponse([
+            {
+              id: 999,
+              body: "Should not be fetched",
+            },
+          ]),
+        );
+      }
+
+      return Promise.resolve(
+        new Response("not found", {
+          status: 404,
+          statusText: "Not Found",
+        }),
+      );
+    };
+    globalThis.fetch = vi.fn(fetchMock);
+    const runner = createToolRunner({
+      cwd: await mkdtemp(join(tmpdir(), "codereviewer-tools-")),
+      context: createGitHubContext(),
+      github: {
+        tokenEnv: "GITHUB_TOKEN",
+        env: {
+          GITHUB_TOKEN: "secret-token",
+        },
+      },
+    });
+
+    await expect(
+      runner.execute({
+        name: "read_github_pr_comments",
+        arguments: {
+          limit: 1,
+        },
+      }),
+    ).resolves.toMatchObject({
+      issueComments: [{ id: 101 }],
+      reviewComments: [{ id: 201 }],
+    });
+    expect(requests).toEqual([
+      "https://api.github.test/repos/acme/repo/issues/12/comments?per_page=1",
+      "https://api.github.test/repos/acme/repo/pulls/12/comments?per_page=1",
+    ]);
+  });
+
   it("denies GitHub tools when platform reads are disabled", async () => {
     const runner = createToolRunner({
       cwd: await mkdtemp(join(tmpdir(), "codereviewer-tools-")),
@@ -1921,11 +2012,15 @@ function createGitLabToolRuntime(
   };
 }
 
-function jsonResponse(body: unknown): Response {
+function jsonResponse(
+  body: unknown,
+  headers: Record<string, string> = {},
+): Response {
   return new Response(JSON.stringify(body), {
     status: 200,
     headers: {
       "content-type": "application/json",
+      ...headers,
     },
   });
 }
