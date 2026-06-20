@@ -47,6 +47,7 @@ export type ReviewPublishMode = "dry-run" | "summary" | "inline";
 
 /** Program-derived overview for one review run. */
 export type ReviewRunOverview = {
+  provider: GitLabMergeRequestContext["provider"];
   changedFiles: number;
   commit: string;
   findings: number;
@@ -119,7 +120,8 @@ export function createReviewPublicationPlan({
 
   return {
     overview: {
-      commit: context.mergeRequest.diffRefs.headSha,
+      provider: context.provider,
+      commit: context.pullRequest.headSha,
       changedFiles: context.changedFiles.length,
       findings: report.findings.length,
       highestSeverity: findHighestSeverity(report.findings),

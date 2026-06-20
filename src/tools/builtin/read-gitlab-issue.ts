@@ -6,9 +6,11 @@ import {
 } from "../../gitlab/reference-context.js";
 import {
   assertUnambiguousGitLabTarget,
+  readGitLabToolContext,
   readGitLabToolToken,
 } from "./gitlab-utils.js";
-import type { ToolImplementation, ToolRuntime } from "../types.js";
+import type { GitLabMergeRequestContext } from "../../gitlab/mr-context.js";
+import type { ToolImplementation } from "../types.js";
 
 const inputSchema = z
   .object({
@@ -23,15 +25,16 @@ export const readGitLabIssueTool: ToolImplementation = {
   execute(args, runtime) {
     const input = inputSchema.parse(args);
     assertUnambiguousGitLabTarget(input);
+    const context = readGitLabToolContext(runtime);
     const target =
       input.reference === undefined
         ? {
-            projectId: input.projectId ?? runtime.context.gitlab.projectId,
+            projectId: input.projectId ?? context.gitlab.projectId,
             iid: readRequiredIid(input.iid),
           }
-        : resolveReference(input.reference, "issue", runtime);
+        : resolveReference(input.reference, "issue", context);
     const client = createGitLabReferenceContextClient({
-      apiUrl: runtime.context.gitlab.apiUrl,
+      apiUrl: context.gitlab.apiUrl,
       token: readGitLabToolToken(runtime),
     });
 
@@ -42,7 +45,7 @@ export const readGitLabIssueTool: ToolImplementation = {
 function resolveReference(
   reference: string,
   expectedKind: "issue",
-  runtime: ToolRuntime,
+  context: GitLabMergeRequestContext,
 ): { projectId: string; iid: number } {
   const parsed = parseGitLabReference(reference);
 
@@ -51,7 +54,7 @@ function resolveReference(
   }
 
   return {
-    projectId: parsed.projectId ?? runtime.context.gitlab.projectId,
+    projectId: parsed.projectId ?? context.gitlab.projectId,
     iid: parsed.iid,
   };
 }

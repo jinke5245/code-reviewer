@@ -1,11 +1,10 @@
 import { z, ZodError } from "zod";
 
-import type { GitLabMergeRequestContext } from "../gitlab/mr-context.js";
 import {
-  findGitLabDiffRangeForCode,
-  readGitLabDiffRangeCode,
-  type GitLabDiffSide,
-} from "../gitlab/diff-lines.js";
+  findDiffRangeForCode,
+  readDiffRangeCode,
+} from "../platform/diff-lines.js";
+import type { DiffSide, ReviewTargetContext } from "../platform/types.js";
 import type { ReviewPromptSummary } from "../prompt/review-prompts.js";
 import { formatErrorMessage } from "../tools/format-error.js";
 
@@ -13,7 +12,7 @@ import { formatErrorMessage } from "../tools/format-error.js";
 export type ReviewFindingSeverity = "low" | "medium" | "high";
 
 /** Diff side accepted in structured review findings. */
-export type ReviewFindingSide = GitLabDiffSide;
+export type ReviewFindingSide = DiffSide;
 
 /** Actionable issue reported by the review model. */
 export type ReviewFinding = {
@@ -46,7 +45,7 @@ export type ReviewReport = {
 /** Inputs required to parse and normalize model output. */
 export type ParseReviewReportOptions = {
   content: string;
-  context: GitLabMergeRequestContext;
+  context: ReviewTargetContext;
   promptSummary?: ReviewPromptSummary;
   toolCalls?: ReviewToolCallSummary[];
 };
@@ -244,7 +243,7 @@ function parseModelReviewReport(rawReport: unknown): ModelReviewReport {
 
 function validateReviewFindingEvidence(
   findings: ReviewFinding[],
-  context: GitLabMergeRequestContext,
+  context: ReviewTargetContext,
 ): void {
   for (const [index, finding] of findings.entries()) {
     const changedFile = context.changedFiles.find(
@@ -257,7 +256,7 @@ function validateReviewFindingEvidence(
       );
     }
 
-    const diffCode = readGitLabDiffRangeCode({
+    const diffCode = readDiffRangeCode({
       diff: changedFile.diff,
       endLine: finding.endLine,
       side: finding.side,
@@ -271,7 +270,7 @@ function validateReviewFindingEvidence(
     }
 
     if (!isReviewFindingCodeEquivalent(diffCode, finding.code)) {
-      const matchedRange = findGitLabDiffRangeForCode({
+      const matchedRange = findDiffRangeForCode({
         code: finding.code,
         diff: changedFile.diff,
         preferredStartLine: finding.startLine,

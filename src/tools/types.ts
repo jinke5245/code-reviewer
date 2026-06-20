@@ -1,6 +1,6 @@
 import type { z } from "zod";
 
-import type { GitLabMergeRequestContext } from "../gitlab/mr-context.js";
+import type { ReviewTargetContext } from "../platform/types.js";
 
 /** Names of built-in read-only tools available to the review model. */
 export type BuiltInToolName =
@@ -11,7 +11,9 @@ export type BuiltInToolName =
   | "read_gitlab_issue"
   | "list_gitlab_issues"
   | "list_gitlab_mrs"
-  | "read_gitlab_mr_discussions";
+  | "read_gitlab_mr_discussions"
+  | "read_github_pr"
+  | "read_github_pr_comments";
 
 /** Limits applied to model-driven tool execution. */
 export type ToolLimits = {
@@ -24,6 +26,7 @@ export type ToolLimits = {
 /** Capability permissions that gate model-driven tool execution. */
 export type ToolPermissions = {
   readRepo: boolean;
+  readPlatform: boolean;
   readGitLab: boolean;
   shell: boolean;
   network: boolean;
@@ -39,9 +42,13 @@ export type ToolCall = {
 /** Runtime context provided to a tool implementation. */
 export type ToolRuntime = {
   cwd: string;
-  context: GitLabMergeRequestContext;
+  context: ReviewTargetContext;
   limits: ToolLimits;
   gitlab?: {
+    tokenEnv: string;
+    env: Record<string, string | undefined>;
+  };
+  github?: {
     tokenEnv: string;
     env: Record<string, string | undefined>;
   };

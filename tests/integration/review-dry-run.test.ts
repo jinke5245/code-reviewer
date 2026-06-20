@@ -354,6 +354,10 @@ describe("review dry-run integration", () => {
       minimum: 1,
       maximum: 100,
     });
+    expect(readToolNames(modelRequestBody)).not.toContain("read_github_pr");
+    expect(readToolNames(modelRequestBody)).not.toContain(
+      "read_github_pr_comments",
+    );
     expect(finalModelRequestBody.response_format).toMatchObject({
       type: "json_schema",
       json_schema: {
@@ -448,6 +452,7 @@ describe("review dry-run integration", () => {
         "  permissions:",
         "    readRepo: false",
         "    readGitLab: false",
+        "    readPlatform: false",
         "",
       ].join("\n"),
     );
@@ -488,7 +493,6 @@ describe("review dry-run integration", () => {
         modelContents: [
           "I have enough context to write the report.",
           "This is prose even though response_format asked for JSON.",
-          "I can repair the report.",
           JSON.stringify({
             summary: "Repaired model report.",
             findings: [],
@@ -531,7 +535,7 @@ describe("review dry-run integration", () => {
       };
     };
 
-    expect(modelRequests).toHaveLength(4);
+    expect(modelRequests).toHaveLength(3);
     expect(structuredModelRequests).toHaveLength(2);
     expect(output).toMatchObject({
       dryRun: true,
@@ -560,11 +564,8 @@ describe("review dry-run integration", () => {
         modelContents: [
           "I have enough context to write the report.",
           "This is not JSON.",
-          "I can repair the report.",
           "Still not JSON.",
-          "I can repair the report again.",
           "Still not JSON again.",
-          "I can make one last repair.",
           "Still not JSON after every repair.",
         ],
       }),
@@ -600,7 +601,7 @@ describe("review dry-run integration", () => {
     );
 
     expect(stdout).toEqual([]);
-    expect(modelRequests).toHaveLength(8);
+    expect(modelRequests).toHaveLength(5);
     expect(structuredModelRequests).toHaveLength(4);
     expect(stderr).toEqual(
       expect.arrayContaining([
@@ -983,6 +984,342 @@ describe("review dry-run integration", () => {
     });
   });
 
+  it("advertises only GitHub platform tools for GitHub provider model requests", async () => {
+    const requests: RecordedRequest[] = [];
+    const cwd = await mkdtemp(join(tmpdir(), "codereviewer-integration-"));
+    const configPath = join(cwd, ".codereviewer.yml");
+    const eventPath = join(cwd, "github-event.json");
+    const stdout: string[] = [];
+
+    globalThis.fetch = vi.fn(
+      createGitHubReviewFetch({
+        modelContent: JSON.stringify({
+          summary: "Environment-backed GitHub review complete.",
+          findings: [],
+        }),
+        requests,
+      }),
+    );
+
+    await writeFile(
+      eventPath,
+      JSON.stringify({ pull_request: { number: 12 } }),
+    );
+    await writeFile(
+      configPath,
+      [
+        "provider: github",
+        "github:",
+        "  tokenEnv: REVIEW_TOKEN",
+        "  publish: dry-run",
+        "",
+      ].join("\n"),
+    );
+
+    await main(["node", "codereviewer", "review"], {
+      cwd,
+      env: {
+        ...createGitHubEnv(eventPath),
+        OPENAI_API_KEY: "openai-secret",
+        OPENAI_BASE_URL: "https://model.example.test/v1",
+        OPENAI_MODEL: "gpt-env",
+      },
+      stdout: (text) => stdout.push(text),
+    });
+
+    const modelRequest = requests.find((request) =>
+      request.url.endsWith("/chat/completions"),
+    );
+    const modelRequestBody = readPostedRequestBody(modelRequest);
+    const output = JSON.parse(stdout.join("\n")) as {
+      report: {
+        summary: string;
+      };
+    };
+
+    expect(readToolNames(modelRequestBody)).toEqual([
+      "read_diff",
+      "read_file",
+      "repo_search",
+      "read_github_pr",
+      "read_github_pr_comments",
+    ]);
+    expect(output.report.summary).toBe(
+      "Environment-backed GitHub review complete.",
+    );
+  });
+
+  it("loads GitHub PR context and prints dry-run JSON", async () => {
+    const requests: RecordedRequest[] = [];
+    const cwd = await mkdtemp(join(tmpdir(), "codereviewer-integration-"));
+    const configPath = join(cwd, ".codereviewer.yml");
+    const eventPath = join(cwd, "github-event.json");
+    const stdout: string[] = [];
+
+    globalThis.fetch = vi.fn(createGitHubReviewFetch({ requests }));
+
+    await mkdir(join(cwd, ".github", "REVIEW_TEMPLATES"), {
+      recursive: true,
+    });
+    await writeFile(
+      join(cwd, ".github", "REVIEW_TEMPLATES", "summary.md"),
+      [
+        "GitHub summary template: {{review.summary}}",
+        "{{comment.fingerprint}}",
+        "",
+      ].join("\n"),
+    );
+    await writeFile(
+      eventPath,
+      JSON.stringify({ pull_request: { number: 12 } }),
+    );
+    await writeFile(
+      configPath,
+      [
+        "provider: github",
+        "github:",
+        "  tokenEnv: REVIEW_TOKEN",
+        "  publish: summary",
+        "",
+      ].join("\n"),
+    );
+
+    await main(["node", "codereviewer", "review", "--dry-run"], {
+      cwd,
+      env: createGitHubEnv(eventPath),
+      reviewModel: createGitHubReviewModel(),
+      stdout: (text) => stdout.push(text),
+    });
+
+    const output = JSON.parse(stdout.join("\n")) as {
+      command: string;
+      dryRun: boolean;
+      overview: {
+        provider: string;
+        changedFiles: number;
+        commit: string;
+        publishMode: string;
+      };
+      report: {
+        summary: string;
+        findings: Array<{
+          path: string;
+          side: string;
+          startLine: number;
+          endLine: number;
+        }>;
+      };
+    };
+
+    expect(output).toMatchObject({
+      command: "review",
+      dryRun: true,
+      overview: {
+        provider: "github",
+        changedFiles: 1,
+        commit: "head-sha",
+        publishMode: "dry-run",
+      },
+      report: {
+        summary: "One GitHub finding.",
+        findings: [
+          {
+            path: "src/new.ts",
+            side: "new",
+            startLine: 1,
+            endLine: 1,
+          },
+        ],
+      },
+    });
+    expect(requests).toHaveLength(2);
+    expect(requests[0]).toMatchObject({
+      url: "https://api.github.com/repos/acme/repo/pulls/12",
+      authorization: "token secret-token",
+    });
+    expect(requests[1]?.url).toBe(
+      "https://api.github.com/repos/acme/repo/pulls/12/files?per_page=100",
+    );
+  });
+
+  it("publishes a GitHub PR summary comment when configured", async () => {
+    const requests: RecordedRequest[] = [];
+    const cwd = await mkdtemp(join(tmpdir(), "codereviewer-integration-"));
+    const configPath = join(cwd, ".codereviewer.yml");
+    const eventPath = join(cwd, "github-event.json");
+    const stdout: string[] = [];
+
+    globalThis.fetch = vi.fn(createGitHubReviewFetch({ requests }));
+
+    await mkdir(join(cwd, ".github", "REVIEW_TEMPLATES"), {
+      recursive: true,
+    });
+    await writeFile(
+      join(cwd, ".github", "REVIEW_TEMPLATES", "summary.md"),
+      [
+        "GitHub summary template: {{review.summary}}",
+        "{{comment.fingerprint}}",
+        "",
+      ].join("\n"),
+    );
+    await writeFile(
+      eventPath,
+      JSON.stringify({ pull_request: { number: 12 } }),
+    );
+    await writeFile(
+      configPath,
+      [
+        "provider: github",
+        "github:",
+        "  tokenEnv: REVIEW_TOKEN",
+        "  publish: summary",
+        "",
+      ].join("\n"),
+    );
+
+    await main(["node", "codereviewer", "review"], {
+      cwd,
+      env: createGitHubEnv(eventPath),
+      reviewModel: createGitHubReviewModel(),
+      stdout: (text) => stdout.push(text),
+    });
+
+    const output = JSON.parse(stdout.join("\n")) as {
+      dryRun: boolean;
+      publish: {
+        status: string;
+        commentId: number;
+        commentUrl: string;
+        fingerprint: string;
+      };
+    };
+    const postRequest = requests.find((request) => request.method === "POST");
+    const commentBody = readStringRecordValue(
+      readPostedRequestBody(postRequest),
+      "body",
+    );
+
+    expect(output.dryRun).toBe(false);
+    expect(output.publish).toMatchObject({
+      status: "created",
+      commentId: 501,
+      commentUrl: "https://github.test/comment/501",
+    });
+    expect(output.publish.fingerprint).toMatch(/^[a-f0-9]{64}$/u);
+    expect(postRequest).toMatchObject({
+      url: "https://api.github.com/repos/acme/repo/issues/12/comments",
+      authorization: "token secret-token",
+      method: "POST",
+    });
+    expect(commentBody).not.toContain("## Code Reviewer");
+    expect(commentBody).toContain(
+      "GitHub summary template: One GitHub finding.",
+    );
+    expect(commentBody).toContain("<!-- codereviewer:summary:");
+  });
+
+  it("publishes GitHub PR inline review comments when configured", async () => {
+    const requests: RecordedRequest[] = [];
+    const cwd = await mkdtemp(join(tmpdir(), "codereviewer-integration-"));
+    const configPath = join(cwd, ".codereviewer.yml");
+    const eventPath = join(cwd, "github-event.json");
+    const stdout: string[] = [];
+
+    globalThis.fetch = vi.fn(createGitHubReviewFetch({ requests }));
+
+    await mkdir(join(cwd, ".github", "review_templates"), {
+      recursive: true,
+    });
+    await mkdir(join(cwd, ".github", "REVIEW_TEMPLATE"), {
+      recursive: true,
+    });
+    await writeFile(
+      join(cwd, ".github", "review_templates", "summary.md"),
+      [
+        "GitHub inline summary: {{review.summary}}",
+        "{{comment.fingerprint}}",
+        "",
+      ].join("\n"),
+    );
+    await writeFile(
+      join(cwd, ".github", "REVIEW_TEMPLATE", "inline.md"),
+      [
+        "GitHub inline template: {{finding.title}}",
+        "Impact: {{comment.severityLabel}}",
+        "{{comment.fingerprint}}",
+        "",
+      ].join("\n"),
+    );
+    await writeFile(
+      eventPath,
+      JSON.stringify({ pull_request: { number: 12 } }),
+    );
+    await writeFile(
+      configPath,
+      [
+        "provider: github",
+        "github:",
+        "  tokenEnv: REVIEW_TOKEN",
+        "  publish: inline",
+        "",
+      ].join("\n"),
+    );
+
+    await main(["node", "codereviewer", "review"], {
+      cwd,
+      env: createGitHubEnv(eventPath),
+      reviewModel: createGitHubReviewModel(),
+      stdout: (text) => stdout.push(text),
+    });
+
+    const output = JSON.parse(stdout.join("\n")) as {
+      dryRun: boolean;
+      publish: {
+        mode: string;
+        created: number;
+        skipped: number;
+        unpublished: number;
+      };
+    };
+    const postRequests = requests.filter(
+      (request) => request.method === "POST",
+    );
+    const summaryBody = readStringRecordValue(
+      readPostedRequestBody(postRequests[0]),
+      "body",
+    );
+    const reviewCommentBody = readPostedRequestBody(postRequests[1]);
+    const inlineBody = readStringRecordValue(reviewCommentBody, "body");
+
+    expect(output.dryRun).toBe(false);
+    expect(output.publish).toMatchObject({
+      mode: "inline",
+      created: 1,
+      skipped: 0,
+      unpublished: 0,
+    });
+    expect(
+      postRequests.map((request) => new URL(request.url).pathname),
+    ).toEqual([
+      "/repos/acme/repo/issues/12/comments",
+      "/repos/acme/repo/pulls/12/comments",
+    ]);
+    expect(summaryBody).toContain("GitHub inline summary: One GitHub finding.");
+    expect(summaryBody).not.toContain("## Code Reviewer");
+    expect(inlineBody).toContain(
+      "GitHub inline template: GitHub inline finding",
+    );
+    expect(inlineBody).toContain("Impact: Medium");
+    expect(inlineBody).not.toContain("**Issue:**");
+    expect(inlineBody).toContain("<!-- codereviewer:inline:");
+    expect(reviewCommentBody).toMatchObject({
+      commit_id: "head-sha",
+      path: "src/new.ts",
+      side: "RIGHT",
+      line: 1,
+    });
+  });
+
   it("fails clearly without printing dry-run JSON when GitLab diff collection fails", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "codereviewer-integration-"));
     const configPath = join(cwd, ".codereviewer.yml");
@@ -1161,6 +1498,148 @@ function openAIChatCompletionResponse(content: string): Response {
       },
     ],
   });
+}
+
+function createGitHubReviewModel(): ReviewModel {
+  return {
+    complete() {
+      return Promise.resolve({
+        content: JSON.stringify({
+          summary: "One GitHub finding.",
+          findings: [
+            {
+              path: "src/new.ts",
+              side: "new",
+              startLine: 1,
+              endLine: 1,
+              code: "export const reviewed = true;",
+              severity: "medium",
+              title: "GitHub inline finding",
+              body: "The GitHub path should publish anchored review output.",
+              suggestion: "Add a focused regression test for this export.",
+              replacementCode: "",
+            },
+          ],
+        }),
+      });
+    },
+  };
+}
+
+function createGitHubEnv(eventPath: string): Record<string, string> {
+  return {
+    GITHUB_ACTIONS: "true",
+    GITHUB_REPOSITORY: "acme/repo",
+    GITHUB_EVENT_PATH: eventPath,
+    REVIEW_TOKEN: "secret-token",
+  };
+}
+
+function createGitHubReviewFetch({
+  modelContent,
+  requests,
+}: {
+  modelContent?: string;
+  requests: RecordedRequest[];
+}): typeof fetch {
+  return async (input, init) => {
+    const request = await recordRequest(requests, input, init);
+    const url = request.url;
+
+    if (isGitHubApiPath(url, "/repos/acme/repo/pulls/12")) {
+      return Promise.resolve(
+        jsonResponse({
+          title: "Add GitHub integration test",
+          body: "Verify GitHub review context collection.",
+          head: {
+            sha: "head-sha",
+          },
+        }),
+      );
+    }
+
+    if (isGitHubApiPath(url, "/repos/acme/repo/pulls/12/files")) {
+      return Promise.resolve(
+        jsonResponse([
+          {
+            filename: "src/new.ts",
+            status: "added",
+            patch: "@@ -0,0 +1,1 @@\n+export const reviewed = true;",
+          },
+        ]),
+      );
+    }
+
+    if (
+      isGitHubApiPath(url, "/repos/acme/repo/issues/12/comments") &&
+      request.method === undefined
+    ) {
+      return Promise.resolve(jsonResponse([]));
+    }
+
+    if (
+      isGitHubApiPath(url, "/repos/acme/repo/issues/12/comments") &&
+      request.method === "POST"
+    ) {
+      const body = readStringRecordValue(
+        readPostedRequestBody(request),
+        "body",
+      );
+
+      return Promise.resolve(
+        jsonResponse({
+          id: 501,
+          body,
+          html_url: "https://github.test/comment/501",
+        }),
+      );
+    }
+
+    if (
+      isGitHubApiPath(url, "/repos/acme/repo/pulls/12/comments") &&
+      request.method === undefined
+    ) {
+      return Promise.resolve(jsonResponse([]));
+    }
+
+    if (
+      isGitHubApiPath(url, "/repos/acme/repo/pulls/12/comments") &&
+      request.method === "POST"
+    ) {
+      const body = readStringRecordValue(
+        readPostedRequestBody(request),
+        "body",
+      );
+
+      return Promise.resolve(
+        jsonResponse({
+          id: 601,
+          body,
+          html_url: "https://github.test/comment/601",
+          path: "src/new.ts",
+          side: "RIGHT",
+          line: 1,
+        }),
+      );
+    }
+
+    if (modelContent !== undefined && isOpenAIChatCompletionRequest(request)) {
+      return Promise.resolve(openAIChatCompletionResponse(modelContent));
+    }
+
+    return Promise.resolve(
+      new Response("not found", {
+        status: 404,
+        statusText: "Not Found",
+      }),
+    );
+  };
+}
+
+function isGitHubApiPath(url: string, path: string): boolean {
+  const parsed = new URL(url);
+
+  return parsed.origin === "https://api.github.com" && parsed.pathname === path;
 }
 
 function fetchInputUrl(input: Parameters<typeof fetch>[0]): string {
@@ -1351,6 +1830,12 @@ function readToolParameter(
   const properties = readRecordValue(parameters, "properties");
 
   return readRecordValue(properties, parameterName);
+}
+
+function readToolNames(body: Record<string, unknown>): string[] {
+  return readRecordArrayValue(body, "tools").map((tool) =>
+    readStringRecordValue(readRecordValue(tool, "function"), "name"),
+  );
 }
 
 function readToolDefinition(

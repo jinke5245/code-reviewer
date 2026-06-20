@@ -10,6 +10,52 @@ export { configSchema, toolNameSchema } from "./config/schema.js";
 export type { CodeReviewerConfig } from "./config/schema.js";
 export { readRequiredEnvironmentValue } from "./env.js";
 export type { EnvironmentVariables } from "./env.js";
+export { createGitHubPullRequestClient } from "./github/client.js";
+export type {
+  CreateGitHubPullRequestClientOptions,
+  GitHubPullRequestClient,
+} from "./github/client.js";
+export {
+  collectGitHubPullRequestContext,
+  readGitHubPullRequestEnvironment,
+} from "./github/pr-context.js";
+export type {
+  CollectGitHubPullRequestContextOptions,
+  GitHubPullRequestEnvironment,
+  GitHubPullRequestEnvironmentVariables,
+  ReadGitHubPullRequestEnvironmentOptions,
+} from "./github/pr-context.js";
+export {
+  createGitHubInlineCommentBody,
+  createGitHubInlineCommentFingerprint,
+  createGitHubSummaryCommentBody,
+  createGitHubSummaryCommentFingerprint,
+} from "./github/review-formatting.js";
+export {
+  createGitHubPullRequestCommentsClient,
+  publishPullRequestInlineComments,
+  publishPullRequestSummaryComment,
+} from "./github/pull-request-comments.js";
+export type {
+  CreateGitHubPullRequestCommentsClientOptions,
+  GitHubIssueComment,
+  GitHubPullRequestCommentsClient,
+  GitHubReviewComment,
+  GitHubReviewCommentCreateInput,
+  PublishPullRequestInlineCommentsResult,
+  PublishPullRequestSummaryCommentResult,
+} from "./github/pull-request-comments.js";
+export {
+  createGitHubReviewPublicationPlan,
+  mapFindingToGitHubPosition,
+} from "./github/review-publication-plan.js";
+export type {
+  GitHubInlineFinding,
+  GitHubReviewCommentPosition,
+  GitHubReviewCommentSide,
+  GitHubReviewPublicationPlan,
+  GitHubReviewRunOverview,
+} from "./github/review-publication-plan.js";
 export {
   createGitLabSdkClient,
   gitLabApiUrlToHost,
@@ -81,14 +127,13 @@ export type {
   MapFindingToDiffPositionOptions,
   ReviewInlineFinding,
   ReviewPublicationPlan,
-  ReviewPublishMode,
   ReviewRunOverview,
 } from "./gitlab/review-publication-plan.js";
-export { loadReviewTemplates } from "./gitlab/review-templates.js";
+export { loadReviewTemplates } from "./review/review-templates.js";
 export type {
   LoadedReviewTemplates,
   LoadReviewTemplatesOptions,
-} from "./gitlab/review-templates.js";
+} from "./review/review-templates.js";
 export {
   createGitLabMergeRequestNoteClient,
   createSummaryNoteBody,
@@ -109,6 +154,22 @@ export type {
 } from "./model/openai-compatible.js";
 export { readPackageInfo } from "./package-info.js";
 export type { PackageInfo } from "./package-info.js";
+export {
+  findDiffRangeForCode,
+  parseUnifiedDiffLines,
+  readDiffRangeCode,
+} from "./platform/diff-lines.js";
+export type { DiffLine, DiffRange } from "./platform/diff-lines.js";
+export { resolveReviewProviderName } from "./platform/provider.js";
+export type {
+  ChangedFileDiff,
+  DiffSide,
+  PullRequestSummary,
+  ReviewProviderName,
+  ReviewPublishMode,
+  ReviewTargetContext,
+} from "./platform/types.js";
+export { formatReviewFindingSeverity } from "./review/formatting.js";
 export {
   loadReviewPrompts,
   summarizeReviewPrompts,

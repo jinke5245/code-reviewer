@@ -57,14 +57,12 @@ describe("mapFindingToDiffPosition", () => {
       lineRange: {
         start: {
           type: "new",
-          lineCode:
-            "a09dc99cc87a5213f8353b6a401e9c60b70d8796_0_12",
+          lineCode: "a09dc99cc87a5213f8353b6a401e9c60b70d8796_0_12",
           newLine: 12,
         },
         end: {
           type: "new",
-          lineCode:
-            "a09dc99cc87a5213f8353b6a401e9c60b70d8796_0_12",
+          lineCode: "a09dc99cc87a5213f8353b6a401e9c60b70d8796_0_12",
           newLine: 12,
         },
       },
@@ -91,14 +89,12 @@ describe("mapFindingToDiffPosition", () => {
       lineRange: {
         start: {
           type: "old",
-          lineCode:
-            "f11a08ec554ce29b0d66efaf548bce632724769a_31_0",
+          lineCode: "f11a08ec554ce29b0d66efaf548bce632724769a_31_0",
           oldLine: 31,
         },
         end: {
           type: "old",
-          lineCode:
-            "f11a08ec554ce29b0d66efaf548bce632724769a_31_0",
+          lineCode: "f11a08ec554ce29b0d66efaf548bce632724769a_31_0",
           oldLine: 31,
         },
       },
@@ -125,15 +121,13 @@ describe("mapFindingToDiffPosition", () => {
       lineRange: {
         start: {
           type: "new",
-          lineCode:
-            "bf61c9a0e0688d304d7c06966da92452e0024612_41_41",
+          lineCode: "bf61c9a0e0688d304d7c06966da92452e0024612_41_41",
           oldLine: 41,
           newLine: 41,
         },
         end: {
           type: "new",
-          lineCode:
-            "bf61c9a0e0688d304d7c06966da92452e0024612_41_41",
+          lineCode: "bf61c9a0e0688d304d7c06966da92452e0024612_41_41",
           oldLine: 41,
           newLine: 41,
         },
@@ -175,14 +169,12 @@ describe("mapFindingToDiffPosition", () => {
       lineRange: {
         start: {
           type: "old",
-          lineCode:
-            "6b277c2d0879a692934c596b7436a894696148ce_5_0",
+          lineCode: "6b277c2d0879a692934c596b7436a894696148ce_5_0",
           oldLine: 5,
         },
         end: {
           type: "old",
-          lineCode:
-            "6b277c2d0879a692934c596b7436a894696148ce_5_0",
+          lineCode: "6b277c2d0879a692934c596b7436a894696148ce_5_0",
           oldLine: 5,
         },
       },
@@ -208,14 +200,12 @@ describe("mapFindingToDiffPosition", () => {
       lineRange: {
         start: {
           type: "new",
-          lineCode:
-            "6b277c2d0879a692934c596b7436a894696148ce_0_6",
+          lineCode: "6b277c2d0879a692934c596b7436a894696148ce_0_6",
           newLine: 6,
         },
         end: {
           type: "new",
-          lineCode:
-            "6b277c2d0879a692934c596b7436a894696148ce_0_6",
+          lineCode: "6b277c2d0879a692934c596b7436a894696148ce_0_6",
           newLine: 6,
         },
       },
@@ -399,6 +389,7 @@ describe("createReviewPublicationPlan", () => {
     });
 
     expect(plan.overview).toEqual({
+      provider: "gitlab",
       commit: "head-sha",
       changedFiles: 1,
       findings: 0,
@@ -440,6 +431,7 @@ function createContext(
 ): GitLabMergeRequestContext {
   return {
     source: "gitlab-merge-request",
+    provider: "gitlab",
     gitlab: {
       apiUrl: "https://gitlab.example.test/api/v4",
       projectId: "123",
@@ -454,6 +446,23 @@ function createContext(
         headSha: "head-sha",
       },
     },
+    pullRequest: {
+      title: "Add inline review",
+      description: "Publish findings as discussions.",
+      headSha: "head-sha",
+    },
     changedFiles,
+    platform: {
+      gitlab: {
+        apiUrl: "https://gitlab.example.test/api/v4",
+        projectId: "123",
+        mergeRequestIid: "9",
+        diffRefs: {
+          baseSha: "base-sha",
+          startSha: "start-sha",
+          headSha: "head-sha",
+        },
+      },
+    },
   };
 }

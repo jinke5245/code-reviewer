@@ -6,6 +6,7 @@ import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import { createCli, isCliEntrypoint, main } from "../../src/cli.js";
+import type { GitHubPullRequestClient } from "../../src/github/client.js";
 import type { GitLabMergeRequestClient } from "../../src/gitlab/mr-context.js";
 import type { ReviewModel } from "../../src/review/loop.js";
 
@@ -118,6 +119,7 @@ describe("createCli", () => {
         findings: number;
         highestSeverity: string;
         inlineFindings: number;
+        provider: string;
         publishMode: string;
         unmappedFindings: number;
       };
@@ -146,6 +148,7 @@ describe("createCli", () => {
       findings: 1,
       highestSeverity: "medium",
       inlineFindings: 1,
+      provider: "gitlab",
       unmappedFindings: 0,
       publishMode: "dry-run",
     });
@@ -176,14 +179,135 @@ describe("createCli", () => {
     ]);
   });
 
+  it("runs review in dry-run mode for a GitHub pull request", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "codereviewer-cli-"));
+    const eventPath = join(cwd, "event.json");
+    const configPath = join(cwd, "review.yml");
+    const stdout: string[] = [];
+    await writeFile(eventPath, JSON.stringify({ pull_request: { number: 12 } }));
+    await writeFile(
+      configPath,
+      [
+        "provider: github",
+        "model:",
+        "  provider: openai-compatible",
+        "  model: qwen-coder",
+        "github:",
+        "  publish: dry-run",
+        "tools:",
+        "  enabled:",
+        "    - read_diff",
+        "    - read_github_pr",
+        "",
+      ].join("\n"),
+    );
+    const githubClient: GitHubPullRequestClient = {
+      getPullRequest() {
+        return Promise.resolve({
+          title: "Review me on GitHub",
+          description: "A pull request ready for review.",
+          headSha: "head-sha",
+        });
+      },
+      listPullRequestDiffs() {
+        return Promise.resolve([
+          {
+            oldPath: "src/index.ts",
+            newPath: "src/index.ts",
+            diff: "@@ -0,0 +1,1 @@\n+export const value = 1;",
+            newFile: false,
+            renamedFile: false,
+            deletedFile: false,
+          },
+        ]);
+      },
+    };
+    const reviewModel: ReviewModel = {
+      complete() {
+        return Promise.resolve({
+          content: JSON.stringify({
+            summary: "One GitHub finding.",
+            findings: [
+              {
+                path: "src/index.ts",
+                side: "new",
+                startLine: 1,
+                endLine: 1,
+                code: "export const value = 1;",
+                severity: "medium",
+                title: "Check value",
+                body: "The exported value needs review.",
+                suggestion: "Explain why this value is safe.",
+                replacementCode: "",
+              },
+            ],
+          }),
+        });
+      },
+    };
+
+    await main(
+      ["node", "codereviewer", "review", "--config", configPath, "--dry-run"],
+      {
+        cwd,
+        env: {
+          GITHUB_ACTIONS: "true",
+          GITHUB_REPOSITORY: "acme/repo",
+          GITHUB_EVENT_PATH: eventPath,
+          GITHUB_TOKEN: "secret-token",
+        },
+        githubClient,
+        reviewModel,
+        stdout: (text) => stdout.push(text),
+      },
+    );
+
+    const output = JSON.parse(stdout.join("\n")) as {
+      command: string;
+      dryRun: boolean;
+      overview: {
+        provider: string;
+        commit: string;
+        changedFiles: number;
+        inlineFindings: number;
+      };
+      publish?: unknown;
+    };
+
+    expect(output.command).toBe("review");
+    expect(output.dryRun).toBe(true);
+    expect(output.overview).toMatchObject({
+      provider: "github",
+      commit: "head-sha",
+      changedFiles: 1,
+      inlineFindings: 1,
+    });
+    expect(output.publish).toBeUndefined();
+  });
+
   it("repairs invalid finding evidence before printing the review report", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "codereviewer-cli-"));
     const configPath = await writeReviewConfig(cwd);
     const stderr: string[] = [];
     const stdout: string[] = [];
     const finalRequests: string[] = [];
+    const requests: Array<{
+      maxRounds: number;
+      remainingToolCalls: number;
+      responseFormat?: "review_report";
+      round: number;
+    }> = [];
     const reviewModel: ReviewModel = {
       complete(request) {
+        requests.push({
+          maxRounds: request.maxRounds,
+          remainingToolCalls: request.remainingToolCalls,
+          ...(request.responseFormat === undefined
+            ? {}
+            : { responseFormat: request.responseFormat }),
+          round: request.round,
+        });
+
         if (request.responseFormat !== "review_report") {
           return Promise.resolve({
             content: "I have enough context to produce JSON.",
@@ -266,6 +390,25 @@ describe("createCli", () => {
     };
 
     expect(finalRequests).toHaveLength(2);
+    expect(requests).toEqual([
+      {
+        maxRounds: 12,
+        remainingToolCalls: 120,
+        round: 1,
+      },
+      {
+        maxRounds: 12,
+        remainingToolCalls: 0,
+        responseFormat: "review_report",
+        round: 2,
+      },
+      {
+        maxRounds: 1,
+        remainingToolCalls: 1,
+        responseFormat: "review_report",
+        round: 1,
+      },
+    ]);
     expect(finalRequests[1]).toContain(
       "Repair invalid Code Reviewer review report",
     );
@@ -285,14 +428,168 @@ describe("createCli", () => {
       "[codereviewer] review phase round 1/12: requesting model remainingToolCalls=120",
       "[codereviewer] review phase round 2/12: finalizing report",
       "[codereviewer] review phase round 2/12: requesting model remainingToolCalls=0, responseFormat=review_report",
-      "[codereviewer] repair phase attempt 1/3 round 1/12: requesting model remainingToolCalls=120",
-      "[codereviewer] repair phase attempt 1/3 round 2/12: finalizing report",
-      "[codereviewer] repair phase attempt 1/3 round 2/12: requesting model remainingToolCalls=0, responseFormat=review_report",
+      "[codereviewer] repair phase attempt 1/3 round 1/1: requesting model remainingToolCalls=1, responseFormat=review_report",
     ]);
     expect(output.report.summary).toBe("One repaired finding.");
     expect(output.report.findings).toMatchObject([
       {
         side: "new",
+        startLine: 1,
+        endLine: 1,
+        code: "export const value = 1;",
+      },
+    ]);
+  });
+
+  it("allows repair to verify invalid anchors with one read_diff call", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "codereviewer-cli-"));
+    const configPath = await writeReviewConfig(cwd);
+    const stderr: string[] = [];
+    const stdout: string[] = [];
+    const repairRequests: Array<{
+      hasReadDiffResult: boolean;
+      remainingToolCalls: number;
+      responseFormat?: "review_report";
+      toolCallNames: string[];
+    }> = [];
+    const reviewModel: ReviewModel = {
+      complete(request) {
+        const isRepairRequest = request.messages.some((message) =>
+          message.content.includes("Repair invalid Code Reviewer review report"),
+        );
+
+        if (isRepairRequest) {
+          const hasReadDiffResult = request.messages.some(
+            (message) =>
+              message.role === "tool" && message.name === "read_diff",
+          );
+          repairRequests.push({
+            hasReadDiffResult,
+            remainingToolCalls: request.remainingToolCalls,
+            ...(request.responseFormat === undefined
+              ? {}
+              : { responseFormat: request.responseFormat }),
+            toolCallNames: request.messages
+              .filter((message) => message.role === "tool")
+              .map((message) => message.name ?? ""),
+          });
+
+          if (!hasReadDiffResult) {
+            return Promise.resolve({
+              content: "I need the diff to repair the anchor.",
+              toolCalls: [
+                {
+                  id: "repair-read-diff",
+                  name: "read_diff",
+                  arguments: {
+                    path: "src/index.ts",
+                  },
+                },
+              ],
+            });
+          }
+
+          return Promise.resolve({
+            content: JSON.stringify({
+              summary: "One repaired finding.",
+              findings: [
+                {
+                  path: "src/index.ts",
+                  side: "new",
+                  startLine: 1,
+                  endLine: 1,
+                  code: "export const value = 1;",
+                  severity: "medium",
+                  title: "Check value",
+                  body: "The exported value needs review.",
+                  suggestion: "Explain why this value is safe.",
+                  replacementCode: "",
+                },
+              ],
+            }),
+          });
+        }
+
+        if (request.responseFormat !== "review_report") {
+          return Promise.resolve({
+            content: "I have enough context to produce JSON.",
+          });
+        }
+
+        return Promise.resolve({
+          content: JSON.stringify({
+            summary: "One finding with wrong evidence.",
+            findings: [
+              {
+                path: "src/index.ts",
+                side: "new",
+                startLine: 2,
+                endLine: 2,
+                code: "export const value = 1;",
+                severity: "medium",
+                title: "Check value",
+                body: "The exported value needs review.",
+                suggestion: "Explain why this value is safe.",
+                replacementCode: "",
+              },
+            ],
+          }),
+        });
+      },
+    };
+
+    await main(
+      ["node", "codereviewer", "review", "--config", configPath, "--dry-run"],
+      {
+        cwd,
+        env: {
+          CI_API_V4_URL: "https://gitlab.example.test/api/v4",
+          CI_PROJECT_ID: "123",
+          CI_MERGE_REQUEST_IID: "7",
+          GL_TOKEN: "secret-token",
+        },
+        gitlabClient: createMergeRequestClient(),
+        reviewModel,
+        stderr: (text) => stderr.push(text),
+        stdout: (text) => stdout.push(text),
+      },
+    );
+
+    const output = JSON.parse(stdout.join("\n")) as {
+      report: {
+        findings: Array<{
+          code: string;
+          endLine: number;
+          startLine: number;
+        }>;
+      };
+    };
+
+    expect(repairRequests).toEqual([
+      {
+        hasReadDiffResult: false,
+        remainingToolCalls: 1,
+        responseFormat: "review_report",
+        toolCallNames: [],
+      },
+      {
+        hasReadDiffResult: true,
+        remainingToolCalls: 0,
+        responseFormat: "review_report",
+        toolCallNames: ["read_diff"],
+      },
+    ]);
+    expect(stderr).toEqual([
+      "[codereviewer] review phase round 1/12: requesting model remainingToolCalls=120",
+      "[codereviewer] review phase round 2/12: finalizing report",
+      "[codereviewer] review phase round 2/12: requesting model remainingToolCalls=0, responseFormat=review_report",
+      "[codereviewer] repair phase attempt 1/3 round 1/1: requesting model remainingToolCalls=1, responseFormat=review_report",
+      "[codereviewer] repair phase attempt 1/3 round 1: running tool read_diff",
+      "[codereviewer] repair phase attempt 1/3 round 1/1: finalizing report",
+      "[codereviewer] repair phase attempt 1/3 round 1/1: requesting model remainingToolCalls=0, responseFormat=review_report",
+    ]);
+    expect(output.report.findings).toMatchObject([
+      {
         startLine: 1,
         endLine: 1,
         code: "export const value = 1;",

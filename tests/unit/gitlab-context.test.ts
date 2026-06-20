@@ -182,6 +182,7 @@ describe("collectGitLabMergeRequestContext", () => {
     expect(calls).toEqual(["mr:123:42", "diffs:123:42"]);
     expect(context).toEqual({
       source: "gitlab-merge-request",
+      provider: "gitlab",
       gitlab: {
         apiUrl: "https://gitlab.example.test/api/v4",
         projectId: "123",
@@ -196,6 +197,11 @@ describe("collectGitLabMergeRequestContext", () => {
           headSha: "head-sha",
         },
       },
+      pullRequest: {
+        title: "Add review context",
+        description: "Collect GitLab MR context for dry-run review.",
+        headSha: "head-sha",
+      },
       changedFiles: [
         {
           oldPath: "src/old.ts",
@@ -206,6 +212,18 @@ describe("collectGitLabMergeRequestContext", () => {
           deletedFile: false,
         },
       ],
+      platform: {
+        gitlab: {
+          apiUrl: "https://gitlab.example.test/api/v4",
+          projectId: "123",
+          mergeRequestIid: "42",
+          diffRefs: {
+            baseSha: "base-sha",
+            startSha: "start-sha",
+            headSha: "head-sha",
+          },
+        },
+      },
     });
   });
 });

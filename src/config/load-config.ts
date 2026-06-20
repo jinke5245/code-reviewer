@@ -1,11 +1,6 @@
 import { access, readFile } from "node:fs/promises";
 import { extname, isAbsolute, join, resolve } from "node:path";
 
-import {
-  parse as parseJsonc,
-  printParseErrorCode,
-  type ParseError,
-} from "jsonc-parser/lib/esm/main.js";
 import { parse as parseToml } from "smol-toml";
 import { parse as parseYaml } from "yaml";
 import { ZodError } from "zod";
@@ -231,24 +226,152 @@ function parseJsonConfig(configPath: string, contents: string): unknown {
 }
 
 function parseJsoncConfig(configPath: string, contents: string): unknown {
-  const errors: ParseError[] = [];
-  const config = parseJsonc(contents, errors, {
-    allowTrailingComma: true,
-    disallowComments: false,
-  }) as unknown;
+  const normalizedContents = removeJsonTrailingCommas(
+    stripJsonComments(contents),
+  );
 
-  const [error] = errors;
+  if (normalizedContents.trim().length === 0) {
+    return {};
+  }
 
-  if (error !== undefined) {
+  try {
+    return JSON.parse(normalizedContents) as unknown;
+  } catch (error) {
     throw new Error(
-      `Cannot parse config ${configPath}: ${printParseErrorCode(
-        error.error,
-      )} at offset ${String(error.offset)}`,
+      `Cannot parse config ${configPath}: ${formatErrorMessage(error)}`,
       { cause: error },
     );
   }
+}
 
-  return config ?? {};
+function stripJsonComments(contents: string): string {
+  let result = "";
+  let inString = false;
+  let escaped = false;
+
+  for (let index = 0; index < contents.length; index += 1) {
+    const char = contents[index];
+    const nextChar = contents[index + 1];
+
+    if (char === undefined) {
+      continue;
+    }
+
+    if (inString) {
+      result += char;
+
+      if (escaped) {
+        escaped = false;
+      } else if (char === "\\") {
+        escaped = true;
+      } else if (char === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === '"') {
+      inString = true;
+      result += char;
+      continue;
+    }
+
+    if (char === "/" && nextChar === "/") {
+      index += 2;
+      while (index < contents.length && !isLineBreak(contents[index])) {
+        index += 1;
+      }
+
+      if (index < contents.length) {
+        result += contents[index] ?? "";
+      }
+      continue;
+    }
+
+    if (char === "/" && nextChar === "*") {
+      index += 2;
+      while (
+        index < contents.length &&
+        !(contents[index] === "*" && contents[index + 1] === "/")
+      ) {
+        result += isLineBreak(contents[index]) ? (contents[index] ?? "") : " ";
+        index += 1;
+      }
+
+      if (index < contents.length) {
+        index += 1;
+      }
+      continue;
+    }
+
+    result += char;
+  }
+
+  return result;
+}
+
+function removeJsonTrailingCommas(contents: string): string {
+  let result = "";
+  let inString = false;
+  let escaped = false;
+
+  for (let index = 0; index < contents.length; index += 1) {
+    const char = contents[index];
+
+    if (char === undefined) {
+      continue;
+    }
+
+    if (inString) {
+      result += char;
+
+      if (escaped) {
+        escaped = false;
+      } else if (char === "\\") {
+        escaped = true;
+      } else if (char === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === '"') {
+      inString = true;
+      result += char;
+      continue;
+    }
+
+    if (char === ",") {
+      const nextSignificantChar = findNextNonWhitespaceChar(contents, index + 1);
+
+      if (nextSignificantChar === "}" || nextSignificantChar === "]") {
+        continue;
+      }
+    }
+
+    result += char;
+  }
+
+  return result;
+}
+
+function findNextNonWhitespaceChar(
+  contents: string,
+  startIndex: number,
+): string | undefined {
+  for (let index = startIndex; index < contents.length; index += 1) {
+    const char = contents[index];
+
+    if (char !== undefined && !/\s/u.test(char)) {
+      return char;
+    }
+  }
+
+  return undefined;
+}
+
+function isLineBreak(char: string | undefined): boolean {
+  return char === "\n" || char === "\r";
 }
 
 function parseTomlConfig(configPath: string, contents: string): unknown {

@@ -10,11 +10,14 @@ export const toolNameSchema = z.enum([
   "list_gitlab_issues",
   "list_gitlab_mrs",
   "read_gitlab_mr_discussions",
+  "read_github_pr",
+  "read_github_pr_comments",
 ]);
 
 /** Runtime configuration schema for the CLI and library entry points. */
 export const configSchema = z
   .object({
+    provider: z.enum(["auto", "gitlab", "github"]).default("auto"),
     review: z
       .object({
         maxRounds: z.number().int().positive().default(12),
@@ -57,6 +60,20 @@ export const configSchema = z
         publish: "dry-run",
         failOnSeverity: "none",
       }),
+    github: z
+      .object({
+        tokenEnv: z.string().min(1).default("GITHUB_TOKEN"),
+        publish: z.enum(["dry-run", "summary", "inline"]).default("dry-run"),
+        failOnSeverity: z
+          .enum(["none", "low", "medium", "high"])
+          .default("none"),
+      })
+      .strict()
+      .default({
+        tokenEnv: "GITHUB_TOKEN",
+        publish: "dry-run",
+        failOnSeverity: "none",
+      }),
     prompts: z
       .object({
         system: z.string().min(1).optional(),
@@ -87,6 +104,8 @@ export const configSchema = z
             "list_gitlab_issues",
             "list_gitlab_mrs",
             "read_gitlab_mr_discussions",
+            "read_github_pr",
+            "read_github_pr_comments",
           ]),
         limits: z
           .object({
@@ -105,6 +124,7 @@ export const configSchema = z
         permissions: z
           .object({
             readRepo: z.boolean().default(true),
+            readPlatform: z.boolean().default(true),
             readGitLab: z.boolean().default(true),
             shell: z.boolean().default(false),
             network: z.boolean().default(false),
@@ -113,6 +133,7 @@ export const configSchema = z
           .strict()
           .default({
             readRepo: true,
+            readPlatform: true,
             readGitLab: true,
             shell: false,
             network: false,
@@ -130,6 +151,8 @@ export const configSchema = z
           "list_gitlab_issues",
           "list_gitlab_mrs",
           "read_gitlab_mr_discussions",
+          "read_github_pr",
+          "read_github_pr_comments",
         ],
         limits: {
           maxToolCalls: 120,
@@ -139,6 +162,7 @@ export const configSchema = z
         },
         permissions: {
           readRepo: true,
+          readPlatform: true,
           readGitLab: true,
           shell: false,
           network: false,

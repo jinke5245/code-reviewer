@@ -27,6 +27,7 @@
     "@commitlint/config-conventional": "^21.0.2",
     "@eslint/js": "^10.0.1",
     "@gitbeaker/rest": "^43.8.0",
+    "@octokit/rest": "^22.0.1",
     "@semantic-release/changelog": "^6.0.3",
     "@semantic-release/commit-analyzer": "^13.0.1",
     "@semantic-release/git": "^10.0.1",
@@ -78,9 +79,12 @@
   },
   "codereviewer": {
     "review": {
-      "maxRounds": 12
+      "maxRounds": 8
     },
     "gitlab": {
+      "publish": "inline"
+    },
+    "github": {
       "publish": "inline"
     },
     "prompts": {

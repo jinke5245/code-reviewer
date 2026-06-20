@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { createGitLabReferenceContextClient } from "../../gitlab/reference-context.js";
-import { readGitLabToolToken } from "./gitlab-utils.js";
+import { readGitLabToolContext, readGitLabToolToken } from "./gitlab-utils.js";
 import type { ToolImplementation } from "../types.js";
 
 const inputSchema = z
@@ -17,9 +17,10 @@ export const listGitLabIssuesTool: ToolImplementation = {
   inputSchema,
   execute(args, runtime) {
     const input = inputSchema.parse(args);
-    const projectId = input.projectId ?? runtime.context.gitlab.projectId;
+    const context = readGitLabToolContext(runtime);
+    const projectId = input.projectId ?? context.gitlab.projectId;
     const client = createGitLabReferenceContextClient({
-      apiUrl: runtime.context.gitlab.apiUrl,
+      apiUrl: context.gitlab.apiUrl,
       token: readGitLabToolToken(runtime),
     });
 

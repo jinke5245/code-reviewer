@@ -6,8 +6,10 @@ import {
 } from "../../gitlab/reference-context.js";
 import {
   assertUnambiguousGitLabTarget,
+  readGitLabToolContext,
   readGitLabToolToken,
 } from "./gitlab-utils.js";
+import type { GitLabMergeRequestContext } from "../../gitlab/mr-context.js";
 import type { ToolImplementation } from "../types.js";
 
 const inputSchema = z
@@ -23,6 +25,7 @@ export const readGitLabMrTool: ToolImplementation = {
   execute(args, runtime) {
     const input = inputSchema.parse(args);
     assertUnambiguousGitLabTarget(input);
+    const context = readGitLabToolContext(runtime);
 
     if (
       input.iid !== undefined ||
@@ -32,12 +35,12 @@ export const readGitLabMrTool: ToolImplementation = {
       const target =
         input.reference === undefined
           ? {
-              projectId: input.projectId ?? runtime.context.gitlab.projectId,
+              projectId: input.projectId ?? context.gitlab.projectId,
               iid: readRequiredIid(input.iid),
             }
-          : resolveMergeRequestReference(input.reference, runtime);
+          : resolveMergeRequestReference(input.reference, context);
       const client = createGitLabReferenceContextClient({
-        apiUrl: runtime.context.gitlab.apiUrl,
+        apiUrl: context.gitlab.apiUrl,
         token: readGitLabToolToken(runtime),
       });
 
@@ -45,10 +48,10 @@ export const readGitLabMrTool: ToolImplementation = {
     }
 
     return Promise.resolve({
-      source: runtime.context.source,
-      gitlab: runtime.context.gitlab,
-      mergeRequest: runtime.context.mergeRequest,
-      changedFiles: runtime.context.changedFiles.map((file) => ({
+      source: context.source,
+      gitlab: context.gitlab,
+      mergeRequest: context.mergeRequest,
+      changedFiles: context.changedFiles.map((file) => ({
         oldPath: file.oldPath,
         newPath: file.newPath,
         newFile: file.newFile,
@@ -61,7 +64,7 @@ export const readGitLabMrTool: ToolImplementation = {
 
 function resolveMergeRequestReference(
   reference: string,
-  runtime: Parameters<ToolImplementation["execute"]>[1],
+  context: GitLabMergeRequestContext,
 ): { projectId: string; iid: number } {
   const parsed = parseGitLabReference(reference);
 
@@ -70,7 +73,7 @@ function resolveMergeRequestReference(
   }
 
   return {
-    projectId: parsed.projectId ?? runtime.context.gitlab.projectId,
+    projectId: parsed.projectId ?? context.gitlab.projectId,
     iid: parsed.iid,
   };
 }

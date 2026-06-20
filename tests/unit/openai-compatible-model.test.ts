@@ -720,6 +720,62 @@ describe("createOpenAICompatibleReviewModel", () => {
     ]);
   });
 
+  it("retries empty choices responses for the same chat completion request", async () => {
+    const requests: string[] = [];
+    const model = createOpenAICompatibleReviewModel({
+      config: {
+        provider: "openai-compatible",
+        apiKeyEnv: "OPENAI_API_KEY",
+      },
+      env: {
+        OPENAI_API_KEY: "openai-secret",
+        OPENAI_BASE_URL: "https://model.example.test/v1",
+        OPENAI_MODEL: "gpt-4.1",
+      },
+      fetch: (input, init) => {
+        requests.push(fetchInputUrl(input));
+
+        if (requests.length === 1) {
+          return Promise.resolve(
+            jsonResponse({
+              choices: [],
+            }),
+          );
+        }
+
+        return createFetchMock([], {
+          choices: [
+            {
+              message: {
+                content: "Retried successfully.",
+              },
+            },
+          ],
+        })(input, init);
+      },
+    });
+
+    await expect(
+      model.complete({
+        round: 1,
+        maxRounds: 3,
+        remainingToolCalls: 0,
+        messages: [
+          {
+            role: "user",
+            content: "Review the merge request.",
+          },
+        ],
+      }),
+    ).resolves.toEqual({
+      content: "Retried successfully.",
+    });
+    expect(requests).toEqual([
+      "https://model.example.test/v1/chat/completions",
+      "https://model.example.test/v1/chat/completions",
+    ]);
+  });
+
   it("does not retry non-transient chat completion errors", async () => {
     const requests: string[] = [];
     const model = createOpenAICompatibleReviewModel({

@@ -11,7 +11,7 @@ import {
   readOptionalString,
   readString,
   readStringArray,
-} from "./response-utils.js";
+} from "../platform/response-utils.js";
 
 /** Sanitized issue metadata returned by the GitLab reference tools. */
 export type GitLabReadableIssue = {

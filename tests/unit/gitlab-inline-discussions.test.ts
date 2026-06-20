@@ -1323,6 +1323,7 @@ function createContext(
 ): GitLabMergeRequestContext {
   return {
     source: "gitlab-merge-request",
+    provider: "gitlab",
     gitlab: {
       apiUrl: "https://gitlab.example.test/api/v4",
       projectId: "123",
@@ -1337,7 +1338,24 @@ function createContext(
         headSha: "head-sha",
       },
     },
+    pullRequest: {
+      title: "Add inline review",
+      description: "Publish findings as discussions.",
+      headSha: "head-sha",
+    },
     changedFiles,
+    platform: {
+      gitlab: {
+        apiUrl: "https://gitlab.example.test/api/v4",
+        projectId: "123",
+        mergeRequestIid: "9",
+        diffRefs: {
+          baseSha: "base-sha",
+          startSha: "start-sha",
+          headSha: "head-sha",
+        },
+      },
+    },
   };
 }
 
