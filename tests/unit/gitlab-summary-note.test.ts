@@ -184,6 +184,24 @@ describe("createSummaryNoteBody", () => {
     expect(body).toContain(`<!-- codereviewer:summary:${fingerprint} -->`);
   });
 
+  it("renders template else blocks without preserving them as placeholders", () => {
+    const plan = createNoFindingsPlan("empty-head-sha");
+    const body = createSummaryNoteBody(plan, {
+      template: [
+        "{{#if review.findings.length}}",
+        "Findings exist.",
+        "{{else}}",
+        "No findings in template.",
+        "{{/if}}",
+        "{{comment.fingerprint}}",
+      ].join("\n"),
+    });
+
+    expect(body).toContain("No findings in template.");
+    expect(body).not.toContain("Findings exist.");
+    expect(body).not.toContain("{{else}}");
+  });
+
   it("does not append a duplicate fingerprint when the summary template includes it", () => {
     const plan = createPlan();
     const fingerprint = createSummaryNoteFingerprint(plan);

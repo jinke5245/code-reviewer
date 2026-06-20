@@ -177,19 +177,19 @@ If no template exists, Code Reviewer uses built-in Markdown output.
 
 ### `tools`
 
-| Field                                | Default                 | Description                                                                                                               |
-| ------------------------------------ | ----------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `tools.enabled`                      | all built-in read tools | Tool names the model may call.                                                                                            |
-| `tools.limits.maxToolCalls`          | `120`                   | Maximum tool calls for one review.                                                                                        |
-| `tools.limits.maxBytesPerToolResult` | `1000000`               | Maximum JSON byte size for one tool result.                                                                               |
-| `tools.limits.maxTotalContextBytes`  | `8000000`               | Maximum cumulative tool-result bytes added to context.                                                                    |
-| `tools.limits.timeoutMs`             | `60000`                 | Per-tool timeout in milliseconds.                                                                                         |
-| `tools.permissions.readRepo`         | `true`                  | Allows reading PR/MR diffs, repository files, and repo search.                                                            |
-| `tools.permissions.readPlatform`     | `true`                  | Allows provider-native read tools for the active platform.                                                                |
-| `tools.permissions.readGitLab`       | `true`                  | Allows GitLab MRs, issues, MR lists, and discussions. Also keeps older configs compatible when `readPlatform` is omitted. |
-| `tools.permissions.shell`            | `false`                 | Reserved for shell-capable tools. Built-in tools do not use it.                                                           |
-| `tools.permissions.network`          | `false`                 | Reserved for arbitrary network tools. Platform reads use read permissions above.                                          |
-| `tools.permissions.write`            | `false`                 | Reserved for write-capable tools. Built-in review tools are read-only.                                                    |
+| Field                                | Default                 | Description                                                                                       |
+| ------------------------------------ | ----------------------- | ------------------------------------------------------------------------------------------------- |
+| `tools.enabled`                      | all built-in read tools | Tool names the model may call.                                                                    |
+| `tools.limits.maxToolCalls`          | `120`                   | Maximum tool calls for one review.                                                                |
+| `tools.limits.maxBytesPerToolResult` | `1000000`               | Maximum JSON byte size for one tool result.                                                       |
+| `tools.limits.maxTotalContextBytes`  | `8000000`               | Maximum cumulative tool-result bytes added to context.                                            |
+| `tools.limits.timeoutMs`             | `60000`                 | Per-tool timeout in milliseconds.                                                                 |
+| `tools.permissions.readRepo`         | `true`                  | Allows reading PR/MR diffs, repository files, and repo search.                                    |
+| `tools.permissions.readPlatform`     | `true`                  | Allows GitHub provider-native read tools, such as `read_github_pr` and `read_github_pr_comments`. |
+| `tools.permissions.readGitLab`       | `true`                  | Allows GitLab MRs, issues, MR lists, and discussions.                                             |
+| `tools.permissions.shell`            | `false`                 | Reserved for shell-capable tools. Built-in tools do not use it.                                   |
+| `tools.permissions.network`          | `false`                 | Reserved for arbitrary network tools. Platform reads use read permissions above.                  |
+| `tools.permissions.write`            | `false`                 | Reserved for write-capable tools. Built-in review tools are read-only.                            |
 
 <!-- markdownlint-enable MD013 -->
 

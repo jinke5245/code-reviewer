@@ -537,6 +537,27 @@ describe("publishMergeRequestInlineDiscussions", () => {
     expect(body).toContain("Unknown: {{{finding.titel}}}");
   });
 
+  it("preserves unknown single-segment template placeholders", () => {
+    const context = createContext();
+    const finding = createFinding();
+    const position = mapFindingToDiffPosition({
+      context,
+      finding,
+    });
+
+    if (position === undefined) {
+      throw new Error("Expected finding to map to a diff position");
+    }
+
+    const body = createInlineDiscussionBody({
+      finding,
+      position,
+      template: ["Unknown: {{foo}}", "{{comment.fingerprint}}"].join("\n"),
+    });
+
+    expect(body).toContain("Unknown: {{foo}}");
+  });
+
   it("publishes mapped findings and skips existing fingerprints", async () => {
     const report = createReport({
       findings: [

@@ -40,9 +40,9 @@ function protectUnknownTemplatePlaceholders(
   const placeholders: Record<string, string> = {};
   let index = 0;
   const protectedTemplate = template.replace(
-    /\{\{\{?\s*([A-Za-z][A-Za-z0-9]*(?:\.[A-Za-z][A-Za-z0-9]*)+)\s*\}?\}\}/gu,
+    /\{\{\{?\s*([A-Za-z][A-Za-z0-9]*(?:\.[A-Za-z][A-Za-z0-9]*)*)\s*\}?\}\}/gu,
     (placeholder: string, path: string) => {
-      if (knownPlaceholders.has(path)) {
+      if (knownPlaceholders.has(path) || path === "else") {
         return placeholder;
       }
 
@@ -83,6 +83,9 @@ function collectKnownTemplatePlaceholderPaths(
     placeholders.add(`${path}.length`);
     for (const item of value) {
       if (isRecord(item)) {
+        for (const [key, child] of Object.entries(item)) {
+          collectKnownTemplatePlaceholderPaths(key, child, placeholders);
+        }
         collectKnownTemplatePlaceholderPaths("this", item, placeholders);
       }
     }
