@@ -8,22 +8,71 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Pull request number to review with dogfood
+        required: true
+        type: number
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.ref }}
+  group: ci-${{ github.event.pull_request.number || inputs.pr_number || github.ref }}
   cancel-in-progress: true
 
 jobs:
+  resolve:
+    name: Resolve CI target
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      checkout_ref: ${{ steps.target.outputs.checkout_ref }}
+      dogfood_pr_number: ${{ steps.target.outputs.dogfood_pr_number }}
+    steps:
+      - name: Resolve checkout ref
+        id: target
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+          PULL_REQUEST_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            echo "checkout_ref=$PULL_REQUEST_HEAD_SHA" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            head_repo="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq '.head.repo.full_name')"
+            head_sha="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq '.head.sha')"
+
+            if [ "$head_repo" != "$GITHUB_REPOSITORY" ]; then
+              echo "::error::Dogfood reviews only support pull requests from ${GITHUB_REPOSITORY}."
+              exit 1
+            fi
+
+            echo "checkout_ref=$head_sha" >> "$GITHUB_OUTPUT"
+            echo "dogfood_pr_number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "checkout_ref=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+
   lint:
     name: Lint
+    needs:
+      - resolve
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v6
         with:
+          ref: ${{ needs.resolve.outputs.checkout_ref }}
           persist-credentials: false
 
       - name: Setup pnpm
@@ -47,6 +96,8 @@ jobs:
 
   test:
     name: Test
+    needs:
+      - resolve
     runs-on: ubuntu-latest
     permissions:
       code-quality: write
@@ -55,7 +106,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ needs.resolve.outputs.checkout_ref }}
           persist-credentials: false
 
       - name: Setup pnpm
@@ -90,15 +141,13 @@ jobs:
 
   dogfood:
     name: Dogfood GitHub PR Review
-    if: >-
-      github.event_name == 'pull_request' &&
-      github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event_name == 'workflow_dispatch'
     needs:
+      - resolve
       - lint
       - test
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    environment: dev
     permissions:
       contents: read
       issues: write
@@ -107,7 +156,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ needs.resolve.outputs.checkout_ref }}
           persist-credentials: false
 
       - name: Setup pnpm
@@ -132,11 +181,19 @@ jobs:
       - name: Bundle CLI
         run: pnpm bundle
 
+      - name: Prepare GitHub PR event
+        env:
+          PR_NUMBER: ${{ needs.resolve.outputs.dogfood_pr_number }}
+        run: |
+          set -euo pipefail
+          printf '{"number":%s}\n' "$PR_NUMBER" > "$RUNNER_TEMP/codereviewer-github-event.json"
+
       - name: Dogfood GitHub PR review
         timeout-minutes: 20
         run: node dist/cli.js review --verbose
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_EVENT_PATH: ${{ runner.temp }}/codereviewer-github-event.json
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL }}
           OPENAI_MODEL: ${{ secrets.OPENAI_MODEL }}
