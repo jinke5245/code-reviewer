@@ -161,6 +161,7 @@ describe("createSummaryNoteBody", () => {
         "{{/each}}",
         "",
         "Unknown: {{review.typo}}",
+        "Unknown title: {{title}}",
       ].join("\n"),
     });
     const fingerprint = createSummaryNoteFingerprint(plan);
@@ -181,6 +182,7 @@ describe("createSummaryNoteBody", () => {
     expect(body).toContain("2/1 **[Medium] Review architecture**");
     expect(body).toContain("Location: `src/service.ts:12-14 (new)`");
     expect(body).toContain("Unknown: {{review.typo}}");
+    expect(body).toContain("Unknown title: {{title}}");
     expect(body).toContain(`<!-- codereviewer:summary:${fingerprint} -->`);
   });
 

@@ -24,6 +24,19 @@ describe("resolveReviewProviderName", () => {
     ).toBe("github");
   });
 
+  it("does not detect GitHub from non-pull-request Actions events", () => {
+    expect(() =>
+      resolveReviewProviderName({
+        config: { provider: "auto" },
+        env: {
+          GITHUB_ACTIONS: "true",
+          GITHUB_EVENT_NAME: "push",
+          GITHUB_EVENT_PATH: "/tmp/event.json",
+        },
+      }),
+    ).toThrow(/Cannot detect review provider/);
+  });
+
   it("detects GitLab merge request CI environments", () => {
     expect(
       resolveReviewProviderName({

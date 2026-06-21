@@ -14,7 +14,9 @@ export function resolveReviewProviderName({
   }
 
   const hasGitHub =
-    env.GITHUB_ACTIONS === "true" && hasText(env.GITHUB_EVENT_PATH);
+    env.GITHUB_ACTIONS === "true" &&
+    hasText(env.GITHUB_EVENT_PATH) &&
+    isGitHubReviewEvent(env.GITHUB_EVENT_NAME);
   const hasGitLab =
     hasText(env.CI_API_V4_URL) &&
     hasText(env.CI_PROJECT_ID) &&
@@ -41,4 +43,16 @@ export function resolveReviewProviderName({
 
 function hasText(value: string | undefined): boolean {
   return value !== undefined && value.trim().length > 0;
+}
+
+function isGitHubReviewEvent(eventName: string | undefined): boolean {
+  if (!hasText(eventName)) {
+    return true;
+  }
+
+  return (
+    eventName === "pull_request" ||
+    eventName === "pull_request_target" ||
+    eventName === "workflow_dispatch"
+  );
 }
