@@ -460,7 +460,9 @@ describe("built-in read-only tools", () => {
     await expect(
       runner.execute({
         name: "read_github_pr_comments",
-        arguments: {},
+        arguments: {
+          number: 12,
+        },
       }),
     ).resolves.toEqual({
       owner: "acme",
@@ -518,7 +520,9 @@ describe("built-in read-only tools", () => {
           number: 99,
         },
       }),
-    ).rejects.toThrow();
+    ).rejects.toThrow(
+      /read_github_pr_comments only supports the current pull request/,
+    );
     expect(fetchMock).not.toHaveBeenCalled();
   });
 

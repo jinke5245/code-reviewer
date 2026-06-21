@@ -6,6 +6,7 @@ import type { ToolImplementation } from "../types.js";
 
 const inputSchema = z
   .object({
+    number: z.number().int().positive().optional(),
     limit: z.number().int().positive().max(100).default(100),
   })
   .strict();
@@ -19,6 +20,12 @@ export const readGitHubPrCommentsTool: ToolImplementation = {
     if (runtime.context.provider !== "github" || github === undefined) {
       throw new Error(
         "read_github_pr_comments requires a GitHub pull request context",
+      );
+    }
+
+    if (input.number !== undefined && input.number !== github.pullNumber) {
+      throw new Error(
+        "read_github_pr_comments only supports the current pull request",
       );
     }
 
