@@ -1,5 +1,5 @@
-import type { GitLabMergeRequestContext } from "../gitlab/mr-context.js";
 import { builtInTools } from "./builtin/index.js";
+import type { ReviewTargetContext } from "../platform/types.js";
 import type {
   BuiltInToolName,
   ToolImplementation,
@@ -12,8 +12,9 @@ import type {
 /** Options for creating a bounded tool runner. */
 export type CreateToolRunnerOptions = {
   cwd: string;
-  context: GitLabMergeRequestContext;
+  context: ReviewTargetContext;
   enabledTools?: string[];
+  github?: ToolRuntime["github"];
   gitlab?: ToolRuntime["gitlab"];
   limits?: Partial<ToolLimits>;
   permissions?: Partial<ToolPermissions>;
@@ -36,10 +37,13 @@ const defaultEnabledTools: BuiltInToolName[] = [
   "list_gitlab_issues",
   "list_gitlab_mrs",
   "read_gitlab_mr_discussions",
+  "read_github_pr",
+  "read_github_pr_comments",
 ];
 
 const defaultPermissions: ToolPermissions = {
   readRepo: true,
+  readPlatform: true,
   readGitLab: true,
   shell: false,
   network: false,
@@ -56,6 +60,8 @@ const requiredToolPermissions: Record<BuiltInToolName, keyof ToolPermissions> =
     list_gitlab_issues: "readGitLab",
     list_gitlab_mrs: "readGitLab",
     read_gitlab_mr_discussions: "readGitLab",
+    read_github_pr: "readPlatform",
+    read_github_pr_comments: "readPlatform",
   };
 
 export function isToolPermitted(
@@ -72,6 +78,7 @@ export function createToolRunner({
   cwd,
   context,
   enabledTools = defaultEnabledTools,
+  github,
   gitlab,
   limits,
   permissions,
@@ -88,6 +95,7 @@ export function createToolRunner({
   const effectivePermissions = {
     ...defaultPermissions,
     ...(permissions ?? {}),
+    readPlatform: permissions?.readPlatform ?? defaultPermissions.readPlatform,
   };
   let callCount = 0;
   let totalContextBytes = 0;
@@ -120,6 +128,7 @@ export function createToolRunner({
           cwd,
           context,
           limits: effectiveLimits,
+          ...(github === undefined ? {} : { github }),
           ...(gitlab === undefined ? {} : { gitlab }),
         }),
         effectiveLimits.timeoutMs,

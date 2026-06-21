@@ -1,4 +1,5 @@
 import type { ToolRuntime } from "../types.js";
+import type { GitLabMergeRequestContext } from "../../gitlab/mr-context.js";
 import {
   formatGitLabTokenEnvCandidates,
   readOptionalGitLabToken,
@@ -41,4 +42,18 @@ export function readGitLabToolToken(runtime: ToolRuntime): string {
   }
 
   return token.token;
+}
+
+/** Reads the active GitLab merge request context for GitLab-only tools. */
+export function readGitLabToolContext(
+  runtime: ToolRuntime,
+): GitLabMergeRequestContext {
+  if (
+    runtime.context.provider !== "gitlab" ||
+    runtime.context.platform.gitlab === undefined
+  ) {
+    throw new Error("Expected GitLab merge request context");
+  }
+
+  return runtime.context as GitLabMergeRequestContext;
 }

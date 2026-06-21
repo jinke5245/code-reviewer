@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import type { GitLabMergeRequestContext } from "../../src/gitlab/mr-context.js";
+import { parseUnifiedDiffLines } from "../../src/platform/diff-lines.js";
+import type { ReviewTargetContext } from "../../src/platform/types.js";
 import { parseReviewReport } from "../../src/review/report.js";
 
 describe("parseReviewReport", () => {
@@ -57,6 +59,54 @@ describe("parseReviewReport", () => {
         },
       ],
     });
+  });
+
+  it("validates findings against a platform-neutral pull request context", () => {
+    expect(
+      parseUnifiedDiffLines(
+        "@@ -1,1 +1,1 @@\n-export const value = 0;\n+export const value = 1;",
+      ),
+    ).toContainEqual({
+      kind: "added",
+      text: "export const value = 1;",
+      newLine: 1,
+    });
+
+    const report = parseReviewReport({
+      content: JSON.stringify({
+        summary: "GitHub finding.",
+        findings: [
+          {
+            path: "src/index.ts",
+            side: "new",
+            startLine: 1,
+            endLine: 1,
+            code: "export const value = 1;",
+            severity: "medium",
+            title: "Check value",
+            body: "The new value needs review.",
+            suggestion: "Explain why this value is safe.",
+            replacementCode: "",
+          },
+        ],
+      }),
+      context: createNeutralContext(),
+    });
+
+    expect(report.findings).toEqual([
+      {
+        path: "src/index.ts",
+        side: "new",
+        startLine: 1,
+        endLine: 1,
+        code: "export const value = 1;",
+        severity: "medium",
+        title: "Check value",
+        body: "The new value needs review.",
+        suggestion: "Explain why this value is safe.",
+        replacementCode: "",
+      },
+    ]);
   });
 
   it("rejects finding ranges that do not exist in the merge request diff", () => {
@@ -428,6 +478,7 @@ describe("parseReviewReport", () => {
 function createContext(): GitLabMergeRequestContext {
   return {
     source: "gitlab-merge-request",
+    provider: "gitlab",
     gitlab: {
       apiUrl: "https://gitlab.example.test/api/v4",
       projectId: "123",
@@ -442,6 +493,11 @@ function createContext(): GitLabMergeRequestContext {
         headSha: "head-sha",
       },
     },
+    pullRequest: {
+      title: "Add review report",
+      description: "Validate model findings.",
+      headSha: "head-sha",
+    },
     changedFiles: [
       {
         oldPath: "src/old.ts",
@@ -452,6 +508,48 @@ function createContext(): GitLabMergeRequestContext {
         deletedFile: false,
       },
     ],
+    platform: {
+      gitlab: {
+        apiUrl: "https://gitlab.example.test/api/v4",
+        projectId: "123",
+        mergeRequestIid: "42",
+        diffRefs: {
+          baseSha: "base-sha",
+          startSha: "start-sha",
+          headSha: "head-sha",
+        },
+      },
+    },
+  };
+}
+
+function createNeutralContext(): ReviewTargetContext {
+  return {
+    source: "github-pull-request",
+    provider: "github",
+    pullRequest: {
+      title: "Review me",
+      description: "GitHub pull request",
+      headSha: "head-sha",
+    },
+    changedFiles: [
+      {
+        oldPath: "src/index.ts",
+        newPath: "src/index.ts",
+        diff: "@@ -1,1 +1,1 @@\n-export const value = 0;\n+export const value = 1;",
+        newFile: false,
+        renamedFile: false,
+        deletedFile: false,
+      },
+    ],
+    platform: {
+      github: {
+        apiUrl: "https://api.github.com",
+        owner: "acme",
+        repo: "repo",
+        pullNumber: 7,
+      },
+    },
   };
 }
 

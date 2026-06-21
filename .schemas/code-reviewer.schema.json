@@ -6,6 +6,12 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
+    "provider": {
+      "type": "string",
+      "enum": ["auto", "gitlab", "github"],
+      "default": "auto",
+      "description": "Review platform. Auto detects GitLab merge request CI or GitHub Actions pull request runs."
+    },
     "review": {
       "type": "object",
       "additionalProperties": false,
@@ -91,6 +97,30 @@
         }
       }
     },
+    "github": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "tokenEnv": {
+          "type": "string",
+          "minLength": 1,
+          "default": "GITHUB_TOKEN",
+          "description": "Environment variable that contains the GitHub token."
+        },
+        "publish": {
+          "type": "string",
+          "enum": ["dry-run", "summary", "inline"],
+          "default": "dry-run",
+          "description": "How review findings are published."
+        },
+        "failOnSeverity": {
+          "type": "string",
+          "enum": ["none", "low", "medium", "high"],
+          "default": "none",
+          "description": "Minimum finding severity that should fail the review job."
+        }
+      }
+    },
     "prompts": {
       "type": "object",
       "additionalProperties": false,
@@ -122,12 +152,12 @@
         "summary": {
           "type": "string",
           "minLength": 1,
-          "description": "Repository-relative path to a Markdown template used for GitLab summary review notes."
+          "description": "Repository-relative path to a Markdown template used for summary review comments."
         },
         "inline": {
           "type": "string",
           "minLength": 1,
-          "description": "Repository-relative path to a Markdown template used for inline GitLab discussion comments."
+          "description": "Repository-relative path to a Markdown template used for inline review comments."
         }
       }
     },
@@ -145,7 +175,9 @@
             "read_gitlab_issue",
             "list_gitlab_issues",
             "list_gitlab_mrs",
-            "read_gitlab_mr_discussions"
+            "read_gitlab_mr_discussions",
+            "read_github_pr",
+            "read_github_pr_comments"
           ],
           "items": {
             "$ref": "#/definitions/toolName"
@@ -185,6 +217,10 @@
               "type": "boolean",
               "default": true
             },
+            "readPlatform": {
+              "type": "boolean",
+              "default": true
+            },
             "readGitLab": {
               "type": "boolean",
               "default": true
@@ -217,7 +253,9 @@
         "read_gitlab_issue",
         "list_gitlab_issues",
         "list_gitlab_mrs",
-        "read_gitlab_mr_discussions"
+        "read_gitlab_mr_discussions",
+        "read_github_pr",
+        "read_github_pr_comments"
       ]
     }
   }

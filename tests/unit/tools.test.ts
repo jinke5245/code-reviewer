@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
 import type { GitLabMergeRequestContext } from "../../src/gitlab/mr-context.js";
+import type { ReviewTargetContext } from "../../src/platform/types.js";
 import {
   isSearchableRepositoryFile,
   listSearchableRepositoryFiles,
@@ -350,6 +351,323 @@ describe("built-in read-only tools", () => {
         },
       ],
     });
+  });
+
+  it("returns GitHub pull request context without exposing the token", async () => {
+    const runner = createToolRunner({
+      cwd: await mkdtemp(join(tmpdir(), "codereviewer-tools-")),
+      context: createGitHubContext(),
+    });
+
+    await expect(
+      runner.execute({
+        name: "read_github_pr",
+        arguments: {},
+      }),
+    ).resolves.toEqual({
+      source: "github-pull-request",
+      github: {
+        apiUrl: "https://api.github.test",
+        owner: "acme",
+        repo: "repo",
+        pullNumber: 12,
+      },
+      pullRequest: {
+        title: "Add GitHub tools",
+        description: "Give the model safe GitHub context tools.",
+        headSha: "head-sha",
+      },
+      changedFiles: [
+        {
+          oldPath: "src/old.ts",
+          newPath: "src/new.ts",
+          newFile: false,
+          renamedFile: true,
+          deletedFile: false,
+        },
+      ],
+    });
+  });
+
+  it("reads GitHub pull request comments", async () => {
+    const requests: Array<{ authorization: string | null; url: string }> = [];
+    const fetchMock: typeof fetch = (input, init) => {
+      const request = new Request(input, init);
+      requests.push({
+        authorization: request.headers.get("authorization"),
+        url: request.url,
+      });
+
+      if (
+        request.url ===
+        "https://api.github.test/repos/acme/repo/issues/12/comments?per_page=100"
+      ) {
+        return Promise.resolve(
+          jsonResponse([
+            {
+              id: 101,
+              body: "Summary comment",
+              user: { login: "reviewer" },
+              html_url: "https://github.test/comment/101",
+              created_at: "2026-06-20T00:00:00Z",
+              updated_at: "2026-06-20T00:01:00Z",
+            },
+          ]),
+        );
+      }
+
+      if (
+        request.url ===
+        "https://api.github.test/repos/acme/repo/pulls/12/comments?per_page=100"
+      ) {
+        return Promise.resolve(
+          jsonResponse([
+            {
+              id: 202,
+              body: "Inline comment",
+              user: { login: "reviewer" },
+              path: "src/new.ts",
+              side: "RIGHT",
+              line: 4,
+              start_line: 3,
+              html_url: "https://github.test/comment/202",
+              created_at: "2026-06-20T00:02:00Z",
+              updated_at: "2026-06-20T00:03:00Z",
+            },
+          ]),
+        );
+      }
+
+      return Promise.resolve(
+        new Response("not found", {
+          status: 404,
+          statusText: "Not Found",
+        }),
+      );
+    };
+    globalThis.fetch = vi.fn(fetchMock);
+    const runner = createToolRunner({
+      cwd: await mkdtemp(join(tmpdir(), "codereviewer-tools-")),
+      context: createGitHubContext(),
+      github: {
+        tokenEnv: "GITHUB_TOKEN",
+        env: {
+          GITHUB_TOKEN: "secret-token",
+        },
+      },
+    });
+
+    await expect(
+      runner.execute({
+        name: "read_github_pr_comments",
+        arguments: {
+          number: 12,
+        },
+      }),
+    ).resolves.toEqual({
+      owner: "acme",
+      repo: "repo",
+      pullNumber: 12,
+      issueComments: [
+        {
+          id: 101,
+          body: "Summary comment",
+          authorLogin: "reviewer",
+          htmlUrl: "https://github.test/comment/101",
+          createdAt: "2026-06-20T00:00:00Z",
+          updatedAt: "2026-06-20T00:01:00Z",
+        },
+      ],
+      reviewComments: [
+        {
+          id: 202,
+          body: "Inline comment",
+          authorLogin: "reviewer",
+          path: "src/new.ts",
+          side: "RIGHT",
+          line: 4,
+          startLine: 3,
+          htmlUrl: "https://github.test/comment/202",
+          createdAt: "2026-06-20T00:02:00Z",
+          updatedAt: "2026-06-20T00:03:00Z",
+        },
+      ],
+    });
+    expect(requests.map((request) => request.authorization)).toEqual([
+      "token secret-token",
+      "token secret-token",
+    ]);
+  });
+
+  it("does not read GitHub comments from another pull request", async () => {
+    const fetchMock = vi.fn<typeof fetch>();
+    globalThis.fetch = fetchMock;
+    const runner = createToolRunner({
+      cwd: await mkdtemp(join(tmpdir(), "codereviewer-tools-")),
+      context: createGitHubContext(),
+      github: {
+        tokenEnv: "GITHUB_TOKEN",
+        env: {
+          GITHUB_TOKEN: "secret-token",
+        },
+      },
+    });
+
+    await expect(
+      runner.execute({
+        name: "read_github_pr_comments",
+        arguments: {
+          number: 99,
+        },
+      }),
+    ).rejects.toThrow(
+      /read_github_pr_comments only supports the current pull request/,
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("stops paginating GitHub comments after reaching the requested limit", async () => {
+    const requests: string[] = [];
+    const fetchMock: typeof fetch = (input, init) => {
+      const request = new Request(input, init);
+      requests.push(request.url);
+
+      if (
+        request.url ===
+        "https://api.github.test/repos/acme/repo/issues/12/comments?per_page=1"
+      ) {
+        return Promise.resolve(
+          jsonResponse(
+            [
+              {
+                id: 101,
+                body: "Summary comment",
+              },
+            ],
+            {
+              link: '<https://api.github.test/repos/acme/repo/issues/12/comments?per_page=1&page=2>; rel="next"',
+            },
+          ),
+        );
+      }
+
+      if (
+        request.url ===
+        "https://api.github.test/repos/acme/repo/pulls/12/comments?per_page=1"
+      ) {
+        return Promise.resolve(
+          jsonResponse(
+            [
+              {
+                id: 201,
+                body: "Inline comment",
+              },
+            ],
+            {
+              link: '<https://api.github.test/repos/acme/repo/pulls/12/comments?per_page=1&page=2>; rel="next"',
+            },
+          ),
+        );
+      }
+
+      if (request.url.includes("page=2")) {
+        return Promise.resolve(
+          jsonResponse([
+            {
+              id: 999,
+              body: "Should not be fetched",
+            },
+          ]),
+        );
+      }
+
+      return Promise.resolve(
+        new Response("not found", {
+          status: 404,
+          statusText: "Not Found",
+        }),
+      );
+    };
+    globalThis.fetch = vi.fn(fetchMock);
+    const runner = createToolRunner({
+      cwd: await mkdtemp(join(tmpdir(), "codereviewer-tools-")),
+      context: createGitHubContext(),
+      github: {
+        tokenEnv: "GITHUB_TOKEN",
+        env: {
+          GITHUB_TOKEN: "secret-token",
+        },
+      },
+    });
+
+    await expect(
+      runner.execute({
+        name: "read_github_pr_comments",
+        arguments: {
+          limit: 1,
+        },
+      }),
+    ).resolves.toMatchObject({
+      issueComments: [{ id: 101 }],
+      reviewComments: [{ id: 201 }],
+    });
+    expect(requests).toEqual([
+      "https://api.github.test/repos/acme/repo/issues/12/comments?per_page=1",
+      "https://api.github.test/repos/acme/repo/pulls/12/comments?per_page=1",
+    ]);
+  });
+
+  it("denies GitHub tools when platform reads are disabled", async () => {
+    const runner = createToolRunner({
+      cwd: await mkdtemp(join(tmpdir(), "codereviewer-tools-")),
+      context: createGitHubContext(),
+      permissions: {
+        readPlatform: false,
+      },
+    });
+
+    await expect(
+      runner.execute({
+        name: "read_github_pr",
+        arguments: {},
+      }),
+    ).rejects.toThrow(
+      /Tool permission denied: read_github_pr requires readPlatform/,
+    );
+  });
+
+  it("keeps GitHub platform reads enabled when only GitLab reads are disabled", async () => {
+    const runner = createToolRunner({
+      cwd: await mkdtemp(join(tmpdir(), "codereviewer-tools-")),
+      context: createGitHubContext(),
+      permissions: {
+        readGitLab: false,
+      },
+    });
+
+    await expect(
+      runner.execute({
+        name: "read_github_pr",
+        arguments: {},
+      }),
+    ).resolves.toMatchObject({
+      github: {
+        owner: "acme",
+        pullNumber: 12,
+        repo: "repo",
+      },
+      pullRequest: {
+        title: "Add GitHub tools",
+      },
+    });
+    await expect(
+      runner.execute({
+        name: "read_gitlab_mr",
+        arguments: {},
+      }),
+    ).rejects.toThrow(
+      /Tool permission denied: read_gitlab_mr requires readGitLab/,
+    );
   });
 
   it("reads a GitLab issue from the current project by iid", async () => {
@@ -1607,6 +1925,7 @@ describe("tool safety and limits", () => {
 function createContext(): GitLabMergeRequestContext {
   return {
     source: "gitlab-merge-request",
+    provider: "gitlab",
     gitlab: {
       apiUrl: "https://gitlab.example.test/api/v4",
       projectId: "123",
@@ -1621,6 +1940,11 @@ function createContext(): GitLabMergeRequestContext {
         headSha: "head-sha",
       },
     },
+    pullRequest: {
+      title: "Add tools",
+      description: "Give the model safe context tools.",
+      headSha: "head-sha",
+    },
     changedFiles: [
       {
         oldPath: "src/old.ts",
@@ -1631,6 +1955,48 @@ function createContext(): GitLabMergeRequestContext {
         deletedFile: false,
       },
     ],
+    platform: {
+      gitlab: {
+        apiUrl: "https://gitlab.example.test/api/v4",
+        projectId: "123",
+        mergeRequestIid: "42",
+        diffRefs: {
+          baseSha: "base-sha",
+          startSha: "start-sha",
+          headSha: "head-sha",
+        },
+      },
+    },
+  };
+}
+
+function createGitHubContext(): ReviewTargetContext {
+  return {
+    source: "github-pull-request",
+    provider: "github",
+    pullRequest: {
+      title: "Add GitHub tools",
+      description: "Give the model safe GitHub context tools.",
+      headSha: "head-sha",
+    },
+    changedFiles: [
+      {
+        oldPath: "src/old.ts",
+        newPath: "src/new.ts",
+        diff: "@@ -1,1 +1,1 @@\n-old\n+new",
+        newFile: false,
+        renamedFile: true,
+        deletedFile: false,
+      },
+    ],
+    platform: {
+      github: {
+        apiUrl: "https://api.github.test",
+        owner: "acme",
+        repo: "repo",
+        pullNumber: 12,
+      },
+    },
   };
 }
 
@@ -1650,11 +2016,15 @@ function createGitLabToolRuntime(
   };
 }
 
-function jsonResponse(body: unknown): Response {
+function jsonResponse(
+  body: unknown,
+  headers: Record<string, string> = {},
+): Response {
   return new Response(JSON.stringify(body), {
     status: 200,
     headers: {
       "content-type": "application/json",
+      ...headers,
     },
   });
 }

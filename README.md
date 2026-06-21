@@ -4,9 +4,9 @@ Code Reviewer is an early-stage AI-assisted code review CLI. It aims to provide
 a review experience similar to GitHub Copilot Code Review while keeping the core
 review engine portable across code hosting platforms.
 
-The current implementation supports GitLab merge request review. GitHub support,
-platform adapters, and skill-defined custom tools are planned follow-up
-milestones.
+The current implementation supports GitLab merge request review and GitHub pull
+request review. Additional platform adapters and skill-defined custom tools are
+planned follow-up milestones.
 
 ## Agent Quick Start
 
@@ -19,20 +19,24 @@ Use the setup instructions from:
 https://gitlab.com/jinke5245/code-reviewer/-/blob/main/README.md
 ```
 
-Code Reviewer runs in a merge request pipeline, reads the current MR metadata and
-diff, asks an OpenAI-compatible model to review the change, and publishes the
-review back to the merge request.
+Code Reviewer runs in a pull request or merge request pipeline, reads the
+current review target metadata and diff, asks an OpenAI-compatible model to
+review the change, and publishes the review back to the hosting platform.
 
 The setup usually needs three pieces:
 
 - `.codereviewer.yml`: Code Reviewer configuration.
-- `.gitlab-ci.yml`: a review job, usually triggered manually.
-- GitLab CI/CD variables: `OPENAI_API_KEY`, `OPENAI_MODEL`, and `GITLAB_TOKEN`
-  or `GL_TOKEN`; private model gateways also need `OPENAI_BASE_URL`.
+- `.gitlab-ci.yml` or `.github/workflows/code-review.yml`: a review job.
+- CI variables or secrets: `OPENAI_API_KEY`, `OPENAI_MODEL`, and a platform
+  token. Private model gateways also need `OPENAI_BASE_URL`.
 
 ## Step 1: Create `.codereviewer.yml`
 
-Create `.codereviewer.yml` at the repository root with the key fields below:
+Create `.codereviewer.yml` at the repository root with the key fields below.
+The default `provider: auto` detects GitLab merge request CI or GitHub Actions
+pull request runs.
+
+For GitLab:
 
 ```yaml
 # yaml-language-server: $schema=https://gitlab.com/jinke5245/code-reviewer/-/raw/main/.schemas/code-reviewer.schema.json
@@ -56,6 +60,23 @@ tools:
     maxToolCalls: 120
 ```
 
+For GitHub:
+
+```yaml
+# yaml-language-server: $schema=https://gitlab.com/jinke5245/code-reviewer/-/raw/main/.schemas/code-reviewer.schema.json
+github:
+  publish: inline
+review:
+  maxRounds: 12
+prompts:
+  extraRules:
+    - Write review summaries, findings, and suggestions in Chinese.
+    - Keep comments concise and focused on actionable issues.
+tools:
+  limits:
+    maxToolCalls: 120
+```
+
 Configuration sources are checked in this order:
 
 1. The explicit `--config <path>` value.
@@ -68,22 +89,27 @@ Configuration sources are checked in this order:
 8. `Cargo.toml#[package.metadata.codereviewer]`.
 9. Built-in defaults.
 
-Prefer `.codereviewer.yml` for first-time setup. Do not store API keys, GitLab
-tokens, or other secrets in configuration files.
+Prefer `.codereviewer.yml` for first-time setup. Do not store API keys,
+GitLab tokens, GitHub tokens, or other secrets in configuration files.
 
-## Step 2: Configure GitLab CI/CD Variables
+## Step 2: Configure CI Secrets
 
-Configure these variables in the target GitLab project:
+Configure these variables in the target GitLab project or GitHub repository:
 
 - `OPENAI_API_KEY`: API key for the OpenAI-compatible model endpoint.
 - `OPENAI_MODEL`: model name used for review.
 - `OPENAI_BASE_URL`: optional private model gateway URL.
 - `GITLAB_TOKEN` or `GL_TOKEN`: token used to read merge request context,
   diffs, discussions, and publish review notes.
+- `GITHUB_TOKEN`: GitHub Actions provides this as `secrets.GITHUB_TOKEN`; pass
+  it to the review step environment. If you use a custom token, set
+  `github.tokenEnv` to its environment variable name.
 
 Code Reviewer reads `GITLAB_TOKEN` first and falls back to `GL_TOKEN`.
 
-## Step 3: Add a GitLab Review Job
+## Step 3: Add a Review Job
+
+### GitLab CI
 
 Add a review job to `.gitlab-ci.yml`. Manual review jobs are recommended because
 AI review is often most useful on demand, not on every temporary push.
@@ -111,15 +137,54 @@ If the project already has `stages`, only add `review` if it is missing. Remove
 `when: manual` if the team wants every merge request pipeline to run AI review
 automatically.
 
+### GitHub Actions
+
+Add a workflow to `.github/workflows/code-review.yml`. The built-in
+`GITHUB_TOKEN` needs permission to read contents and write pull request comments.
+
+```yaml
+name: AI Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  ai-code-review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install -g @jinke5245/code-reviewer
+      - run: codereviewer --version
+      - run: codereviewer review
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_MODEL: ${{ vars.OPENAI_MODEL }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
+
+For public repositories that receive untrusted fork pull requests, keep model
+secrets unavailable to forked PR runs or trigger review from trusted workflows.
+
 ## Step 4: Verify the First Review
 
-Trigger `ai-code-review` from a merge request pipeline. A successful setup should
-show:
+Trigger `ai-code-review` from a merge request pipeline or pull request workflow.
+A successful setup should show:
 
 - `codereviewer --version` prints the installed version.
 - The job log shows review progress and final JSON.
 - With `gitlab.publish: inline`, the MR receives one summary note and inline
   discussions for findings that can be mapped to exact diff lines.
+- With `github.publish: inline`, the PR receives one summary issue comment and
+  inline review comments for findings that can be mapped to exact diff lines.
 
 For debugging, run:
 
@@ -145,6 +210,10 @@ need to tune model settings, publish mode, prompts, templates, or tool limits.
 - `CI_MERGE_REQUEST_IID` is missing: the job is not running in a merge request
   pipeline; check the `rules`.
 - GitLab token is missing: configure `GITLAB_TOKEN` or `GL_TOKEN`.
+- GitHub token is missing: ensure the workflow exposes `GITHUB_TOKEN`, or set
+  `github.tokenEnv` to a custom token environment variable.
+- Provider detection is ambiguous: set `provider: gitlab` or
+  `provider: github` in `.codereviewer.yml`.
 - Model name is missing: configure `OPENAI_MODEL` or set `model.model` in the
   config file.
 - The model gateway rejects structured response formats: keep

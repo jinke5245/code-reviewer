@@ -2,6 +2,8 @@ import { listGitLabIssuesTool } from "./list-gitlab-issues.js";
 import { listGitLabMrsTool } from "./list-gitlab-mrs.js";
 import { readDiffTool } from "./read-diff.js";
 import { readFileTool } from "./read-file.js";
+import { readGitHubPrCommentsTool } from "./read-github-pr-comments.js";
+import { readGitHubPrTool } from "./read-github-pr.js";
 import { readGitLabMrDiscussionsTool } from "./read-gitlab-mr-discussions.js";
 import { readGitLabIssueTool } from "./read-gitlab-issue.js";
 import { readGitLabMrTool } from "./read-gitlab-mr.js";
@@ -17,4 +19,6 @@ export const builtInTools: Record<BuiltInToolName, ToolImplementation> = {
   list_gitlab_issues: listGitLabIssuesTool,
   list_gitlab_mrs: listGitLabMrsTool,
   read_gitlab_mr_discussions: readGitLabMrDiscussionsTool,
+  read_github_pr: readGitHubPrTool,
+  read_github_pr_comments: readGitHubPrCommentsTool,
 };

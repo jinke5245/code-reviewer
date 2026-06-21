@@ -4,7 +4,6 @@ import type {
   ReviewPublicationPlan,
   ReviewPublishMode,
 } from "./review-publication-plan.js";
-import { formatReviewFindingSeverity } from "./review-formatting.js";
 import { renderGitLabReviewTemplate } from "./review-template-rendering.js";
 import type { ReviewFinding } from "../review/report.js";
 import {
@@ -20,7 +19,8 @@ import {
   readOptionalString,
   readString,
   stableStringify,
-} from "./response-utils.js";
+} from "../platform/response-utils.js";
+import { formatReviewFindingSeverity } from "../review/formatting.js";
 
 /** A merge request note returned by the GitLab notes API. */
 export type GitLabMergeRequestNote = {

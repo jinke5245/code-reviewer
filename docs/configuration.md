@@ -10,8 +10,9 @@ the repository root with a schema comment for editor support:
 # yaml-language-server: $schema=./.schemas/code-reviewer.schema.json
 ```
 
-Every field is optional. Code Reviewer fills in defaults and rejects unknown fields.
-Never store API keys, GitLab tokens, or other secrets in configuration files.
+Every field is optional. Code Reviewer fills in defaults and rejects unknown
+fields. Never store API keys, GitLab tokens, GitHub tokens, or other secrets in
+configuration files.
 
 ## Discovery Order
 
@@ -33,7 +34,7 @@ sources:
 `codereviewer review` supports these common options:
 
 - `--config <path>`: load configuration from a specific file.
-- `--dry-run`: print review JSON without publishing GitLab comments.
+- `--dry-run`: print review JSON without publishing platform comments.
 - `--verbose`: write readable progress logs to stderr while keeping stdout as
   final JSON.
 
@@ -64,6 +65,12 @@ tool results.
 | `model.timeoutMs`       | `300000`                                            | Per-request model timeout in milliseconds.                                                                                                                                                                                                                                           |
 | `model.responseFormat`  | `auto`                                              | Final report response format: `auto`, `json_schema`, `json_object`, or `off`. `auto` tries `json_schema`, falls back to `json_object`, then omits `response_format` when the provider rejects both structured response formats. Use `off` to always rely on prompt-only JSON output. |
 
+### `provider`
+
+| Field      | Default | Description                                                                                                                                         |
+| ---------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `provider` | `auto`  | Review platform: `auto`, `gitlab`, or `github`. `auto` detects GitLab merge request CI or GitHub Actions pull request runs from environment values. |
+
 ### `gitlab`
 
 | Field                   | Default        | Description                                                                            |
@@ -71,6 +78,19 @@ tool results.
 | `gitlab.tokenEnv`       | `GITLAB_TOKEN` | Environment variable for the GitLab token. The default also falls back to `GL_TOKEN`.  |
 | `gitlab.publish`        | `dry-run`      | Publish mode: `dry-run`, `summary`, or `inline`.                                       |
 | `gitlab.failOnSeverity` | `none`         | Minimum finding severity that should fail the job: `none`, `low`, `medium`, or `high`. |
+
+### `github`
+
+| Field                   | Default        | Description                                                                            |
+| ----------------------- | -------------- | -------------------------------------------------------------------------------------- |
+| `github.tokenEnv`       | `GITHUB_TOKEN` | Environment variable for the GitHub token.                                             |
+| `github.publish`        | `dry-run`      | Publish mode: `dry-run`, `summary`, or `inline`.                                       |
+| `github.failOnSeverity` | `none`         | Minimum finding severity that should fail the job: `none`, `low`, `medium`, or `high`. |
+
+GitHub review runs expect `GITHUB_REPOSITORY`, `GITHUB_EVENT_PATH`, and
+`GITHUB_TOKEN` or the configured token env. GitHub Actions provides the first two
+for pull request workflows; pass `secrets.GITHUB_TOKEN` to the review step env so
+the default token setting can read it.
 
 ### `prompts`
 
@@ -82,10 +102,10 @@ tool results.
 
 ### `templates`
 
-| Field               | Default       | Description                                                          |
-| ------------------- | ------------- | -------------------------------------------------------------------- |
-| `templates.summary` | auto-discover | Repository-relative Markdown template for GitLab summary notes.      |
-| `templates.inline`  | auto-discover | Repository-relative Markdown template for GitLab inline discussions. |
+| Field               | Default       | Description                                                       |
+| ------------------- | ------------- | ----------------------------------------------------------------- |
+| `templates.summary` | auto-discover | Repository-relative Markdown template for summary comments.       |
+| `templates.inline`  | auto-discover | Repository-relative Markdown template for inline review comments. |
 
 Code Reviewer renders templates with Handlebars. It does not register custom helpers.
 Unknown simple placeholders are preserved, and known empty values render as
@@ -94,8 +114,13 @@ automatically appends the hidden fingerprint marker for idempotency.
 
 When template paths are not configured, Code Reviewer looks for:
 
-- `.gitlab/review_templates/summary.md`
-- `.gitlab/review_templates/inline.md`
+- The current provider directory first: `.github/` for GitHub or `.gitlab/`
+  for GitLab.
+- The other provider directory as a fallback.
+- Any of these template directory names under that provider directory:
+  `review_templates`, `review_template`, `REVIEW_TEMPLATES`, or
+  `REVIEW_TEMPLATE`.
+- `summary.md` and `inline.md` inside the selected template directory.
 
 If no template exists, Code Reviewer uses built-in Markdown output.
 
@@ -133,37 +158,38 @@ If no template exists, Code Reviewer uses built-in Markdown output.
 
 ### Inline Template Variables
 
-| Variable                  | Description                                         |
-| ------------------------- | --------------------------------------------------- |
-| `finding.severity`        | Finding severity.                                   |
-| `finding.title`           | Finding title.                                      |
-| `finding.body`            | Finding explanation.                                |
-| `finding.suggestion`      | Suggested fix text.                                 |
-| `finding.path`            | Finding path.                                       |
-| `finding.side`            | Diff side: `new` or `old`.                          |
-| `finding.startLine`       | Start line on the selected side.                    |
-| `finding.endLine`         | End line on the selected side.                      |
-| `finding.code`            | Diff-anchored code.                                 |
-| `finding.replacementCode` | Applyable replacement code, when available.         |
-| `comment.location`        | Formatted location, such as `src/a.ts:7 (new)`.     |
-| `comment.severityLabel`   | Formatted severity, such as `High`.                 |
-| `comment.suggestionBlock` | GitLab suggestion block generated by Code Reviewer. |
-| `comment.fingerprint`     | Hidden inline de-duplication marker.                |
+| Variable                  | Description                                           |
+| ------------------------- | ----------------------------------------------------- |
+| `finding.severity`        | Finding severity.                                     |
+| `finding.title`           | Finding title.                                        |
+| `finding.body`            | Finding explanation.                                  |
+| `finding.suggestion`      | Suggested fix text.                                   |
+| `finding.path`            | Finding path.                                         |
+| `finding.side`            | Diff side: `new` or `old`.                            |
+| `finding.startLine`       | Start line on the selected side.                      |
+| `finding.endLine`         | End line on the selected side.                        |
+| `finding.code`            | Diff-anchored code.                                   |
+| `finding.replacementCode` | Applyable replacement code, when available.           |
+| `comment.location`        | Formatted location, such as `src/a.ts:7 (new)`.       |
+| `comment.severityLabel`   | Formatted severity, such as `High`.                   |
+| `comment.suggestionBlock` | Platform suggestion block generated by Code Reviewer. |
+| `comment.fingerprint`     | Hidden inline de-duplication marker.                  |
 
 ### `tools`
 
-| Field                                | Default                 | Description                                                            |
-| ------------------------------------ | ----------------------- | ---------------------------------------------------------------------- |
-| `tools.enabled`                      | all built-in read tools | Tool names the model may call.                                         |
-| `tools.limits.maxToolCalls`          | `120`                   | Maximum tool calls for one review.                                     |
-| `tools.limits.maxBytesPerToolResult` | `1000000`               | Maximum JSON byte size for one tool result.                            |
-| `tools.limits.maxTotalContextBytes`  | `8000000`               | Maximum cumulative tool-result bytes added to context.                 |
-| `tools.limits.timeoutMs`             | `60000`                 | Per-tool timeout in milliseconds.                                      |
-| `tools.permissions.readRepo`         | `true`                  | Allows reading MR diffs, repository files, and repo search.            |
-| `tools.permissions.readGitLab`       | `true`                  | Allows reading GitLab MRs, issues, MR lists, and discussions.          |
-| `tools.permissions.shell`            | `false`                 | Reserved for shell-capable tools. Built-in tools do not use it.        |
-| `tools.permissions.network`          | `false`                 | Reserved for arbitrary network tools. GitLab reads use `readGitLab`.   |
-| `tools.permissions.write`            | `false`                 | Reserved for write-capable tools. Built-in review tools are read-only. |
+| Field                                | Default                 | Description                                                                                       |
+| ------------------------------------ | ----------------------- | ------------------------------------------------------------------------------------------------- |
+| `tools.enabled`                      | all built-in read tools | Tool names the model may call.                                                                    |
+| `tools.limits.maxToolCalls`          | `120`                   | Maximum tool calls for one review.                                                                |
+| `tools.limits.maxBytesPerToolResult` | `1000000`               | Maximum JSON byte size for one tool result.                                                       |
+| `tools.limits.maxTotalContextBytes`  | `8000000`               | Maximum cumulative tool-result bytes added to context.                                            |
+| `tools.limits.timeoutMs`             | `60000`                 | Per-tool timeout in milliseconds.                                                                 |
+| `tools.permissions.readRepo`         | `true`                  | Allows reading PR/MR diffs, repository files, and repo search.                                    |
+| `tools.permissions.readPlatform`     | `true`                  | Allows GitHub provider-native read tools, such as `read_github_pr` and `read_github_pr_comments`. |
+| `tools.permissions.readGitLab`       | `true`                  | Allows GitLab MRs, issues, MR lists, and discussions.                                             |
+| `tools.permissions.shell`            | `false`                 | Reserved for shell-capable tools. Built-in tools do not use it.                                   |
+| `tools.permissions.network`          | `false`                 | Reserved for arbitrary network tools. Platform reads use read permissions above.                  |
+| `tools.permissions.write`            | `false`                 | Reserved for write-capable tools. Built-in review tools are read-only.                            |
 
 <!-- markdownlint-enable MD013 -->
 
@@ -180,19 +206,44 @@ tools:
     - list_gitlab_issues
     - list_gitlab_mrs
     - read_gitlab_mr_discussions
+    - read_github_pr
+    - read_github_pr_comments
 ```
+
+Only tools for the active provider are advertised to the model. For example, a
+GitHub review run exposes repository tools and GitHub tools, but not GitLab
+tools.
 
 Permission mapping:
 
-| Permission   | Built-in tools                            |
-| ------------ | ----------------------------------------- |
-| `readRepo`   | `read_diff`, `read_file`, `repo_search`   |
-| `readGitLab` | `read_gitlab_*` and `list_gitlab_*` tools |
+| Permission     | Built-in tools                            |
+| -------------- | ----------------------------------------- |
+| `readRepo`     | `read_diff`, `read_file`, `repo_search`   |
+| `readPlatform` | `read_github_*` tools                     |
+| `readGitLab`   | `read_gitlab_*` and `list_gitlab_*` tools |
 
 ## Minimal Recommended Config
 
+GitLab:
+
 ```yaml
 gitlab:
+  publish: inline
+review:
+  maxRounds: 12
+prompts:
+  extraRules:
+    - Write review summaries, findings, and suggestions in Chinese.
+    - Keep comments concise and focused on actionable issues.
+tools:
+  limits:
+    maxToolCalls: 120
+```
+
+GitHub:
+
+```yaml
+github:
   publish: inline
 review:
   maxRounds: 12

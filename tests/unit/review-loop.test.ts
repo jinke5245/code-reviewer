@@ -1056,6 +1056,7 @@ describe("runReviewLoop", () => {
 function createContext(): GitLabMergeRequestContext {
   return {
     source: "gitlab-merge-request",
+    provider: "gitlab",
     gitlab: {
       apiUrl: "https://gitlab.example.test/api/v4",
       projectId: "123",
@@ -1070,6 +1071,23 @@ function createContext(): GitLabMergeRequestContext {
         headSha: "head-sha",
       },
     },
+    pullRequest: {
+      title: "Add review loop",
+      description: "Let the model request tools before final output.",
+      headSha: "head-sha",
+    },
     changedFiles: [],
+    platform: {
+      gitlab: {
+        apiUrl: "https://gitlab.example.test/api/v4",
+        projectId: "123",
+        mergeRequestIid: "42",
+        diffRefs: {
+          baseSha: "base-sha",
+          startSha: "start-sha",
+          headSha: "head-sha",
+        },
+      },
+    },
   };
 }

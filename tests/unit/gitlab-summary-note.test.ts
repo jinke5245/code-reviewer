@@ -43,7 +43,9 @@ describe("createSummaryNoteBody", () => {
     expect(body).toContain("Review architecture");
     expect(body).toContain("`src/service.ts:12-14 (new)`");
     expect(body).not.toContain("service.start();");
-    expect(body).not.toContain("This concern is not tied to a stable diff position.");
+    expect(body).not.toContain(
+      "This concern is not tied to a stable diff position.",
+    );
     expect(body).not.toContain("Review the surrounding design.");
     expect(body).toContain("Tool calls: 1");
     expect(body).toContain("Prompt bytes: 120");
@@ -115,9 +117,7 @@ describe("createSummaryNoteBody", () => {
       findings: plan.findings.map((finding) => ({
         ...finding,
         severity:
-          finding.title === "Validate input"
-            ? "medium"
-            : finding.severity,
+          finding.title === "Validate input" ? "medium" : finding.severity,
       })),
       inlineFindings: plan.inlineFindings.map((inlineFinding) =>
         inlineFinding.finding.title === "Validate input"
@@ -161,6 +161,7 @@ describe("createSummaryNoteBody", () => {
         "{{/each}}",
         "",
         "Unknown: {{review.typo}}",
+        "Unknown title: {{title}}",
       ].join("\n"),
     });
     const fingerprint = createSummaryNoteFingerprint(plan);
@@ -181,17 +182,35 @@ describe("createSummaryNoteBody", () => {
     expect(body).toContain("2/1 **[Medium] Review architecture**");
     expect(body).toContain("Location: `src/service.ts:12-14 (new)`");
     expect(body).toContain("Unknown: {{review.typo}}");
+    expect(body).toContain("Unknown title: {{title}}");
     expect(body).toContain(`<!-- codereviewer:summary:${fingerprint} -->`);
+  });
+
+  it("renders template else blocks without preserving them as placeholders", () => {
+    const plan = createNoFindingsPlan("empty-head-sha");
+    const body = createSummaryNoteBody(plan, {
+      template: [
+        "{{#if review.findings.length}}",
+        "Findings exist.",
+        "{{else}}",
+        "No findings in template.",
+        "{{/if}}",
+        "{{comment.fingerprint}}",
+      ].join("\n"),
+    });
+
+    expect(body).toContain("No findings in template.");
+    expect(body).not.toContain("Findings exist.");
+    expect(body).not.toContain("{{else}}");
   });
 
   it("does not append a duplicate fingerprint when the summary template includes it", () => {
     const plan = createPlan();
     const fingerprint = createSummaryNoteFingerprint(plan);
     const body = createSummaryNoteBody(plan, {
-      template: [
-        "Summary: {{review.summary}}",
-        "{{comment.fingerprint}}",
-      ].join("\n"),
+      template: ["Summary: {{review.summary}}", "{{comment.fingerprint}}"].join(
+        "\n",
+      ),
     });
 
     expect(body.match(/codereviewer:summary:/gu)).toHaveLength(1);
@@ -491,6 +510,7 @@ describe("createGitLabMergeRequestNoteClient", () => {
 function createPlan(): ReviewPublicationPlan {
   return {
     overview: {
+      provider: "gitlab",
       commit: "head-sha",
       changedFiles: 3,
       findings: 2,

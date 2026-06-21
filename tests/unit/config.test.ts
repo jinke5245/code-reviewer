@@ -13,6 +13,7 @@ describe("loadConfig", () => {
     const config = await loadConfig({ cwd });
 
     expect(config).toEqual({
+      provider: "auto",
       review: {
         maxRounds: 12,
       },
@@ -24,6 +25,11 @@ describe("loadConfig", () => {
       },
       gitlab: {
         tokenEnv: "GITLAB_TOKEN",
+        publish: "dry-run",
+        failOnSeverity: "none",
+      },
+      github: {
+        tokenEnv: "GITHUB_TOKEN",
         publish: "dry-run",
         failOnSeverity: "none",
       },
@@ -41,6 +47,8 @@ describe("loadConfig", () => {
           "list_gitlab_issues",
           "list_gitlab_mrs",
           "read_gitlab_mr_discussions",
+          "read_github_pr",
+          "read_github_pr_comments",
         ],
         limits: {
           maxToolCalls: 120,
@@ -50,6 +58,7 @@ describe("loadConfig", () => {
         },
         permissions: {
           readRepo: true,
+          readPlatform: true,
           readGitLab: true,
           shell: false,
           network: false,
@@ -70,6 +79,42 @@ describe("loadConfig", () => {
     const config = await loadConfig({ cwd });
 
     expect(config.gitlab.tokenEnv).toBe("REVIEW_TOKEN");
+  });
+
+  it("loads explicit GitHub provider configuration", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "codereviewer-config-"));
+    const configPath = join(cwd, ".codereviewer.yml");
+
+    await writeFile(
+      configPath,
+      [
+        "provider: github",
+        "github:",
+        "  tokenEnv: REVIEW_GITHUB_TOKEN",
+        "  publish: inline",
+        "  failOnSeverity: medium",
+        "tools:",
+        "  enabled:",
+        "    - read_diff",
+        "    - read_github_pr",
+        "    - read_github_pr_comments",
+        "",
+      ].join("\n"),
+    );
+
+    const config = await loadConfig({ cwd, configPath });
+
+    expect(config.provider).toBe("github");
+    expect(config.github).toEqual({
+      tokenEnv: "REVIEW_GITHUB_TOKEN",
+      publish: "inline",
+      failOnSeverity: "medium",
+    });
+    expect(config.tools.enabled).toEqual([
+      "read_diff",
+      "read_github_pr",
+      "read_github_pr_comments",
+    ]);
   });
 
   it("prefers .codereviewer.yml over .codereviewer.yaml", async () => {
@@ -125,6 +170,63 @@ describe("loadConfig", () => {
     const config = await loadConfig({ cwd });
 
     expect(config.gitlab.tokenEnv).toBe("JSONC_TOKEN");
+  });
+
+  it("keeps comment markers inside JSONC strings", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "codereviewer-config-"));
+
+    await writeFile(
+      join(cwd, ".codereviewer.jsonc"),
+      [
+        "{",
+        '  "prompts": {',
+        '    "extraRules": [',
+        '      "Keep // and /* text */ inside strings intact",',
+        "    ],",
+        "  },",
+        "}",
+        "",
+      ].join("\n"),
+    );
+
+    const config = await loadConfig({ cwd });
+
+    expect(config.prompts.extraRules).toEqual([
+      "Keep // and /* text */ inside strings intact",
+    ]);
+  });
+
+  it("treats empty JSONC block comments as token separators", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "codereviewer-config-"));
+
+    await writeFile(
+      join(cwd, ".codereviewer.jsonc"),
+      [
+        "{",
+        '  "review": {',
+        '    "maxRounds": 1/**/2',
+        "  }",
+        "}",
+        "",
+      ].join("\n"),
+    );
+
+    await expect(loadConfig({ cwd })).rejects.toThrow(
+      /Cannot parse config .*\.codereviewer\.jsonc/,
+    );
+  });
+
+  it("rejects unterminated JSONC block comments", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "codereviewer-config-"));
+
+    await writeFile(
+      join(cwd, ".codereviewer.jsonc"),
+      ['{ "review": { "maxRounds": 8 } }/*'].join("\n"),
+    );
+
+    await expect(loadConfig({ cwd })).rejects.toThrow(
+      /Cannot parse config .*\.codereviewer\.jsonc/,
+    );
   });
 
   it("keeps YAML defaults ahead of JSON defaults", async () => {
@@ -469,6 +571,7 @@ describe("loadConfig", () => {
     });
     expect(config.tools.permissions).toEqual({
       readRepo: true,
+      readPlatform: true,
       readGitLab: true,
       shell: false,
       network: false,
@@ -569,8 +672,7 @@ describe("loadConfig", () => {
       expect(error).toBeInstanceOf(Error);
       const cause = (error as Error).cause;
 
-      expect(isRecord(cause)).toBe(true);
-      expect(typeof (cause as Record<string, unknown>).offset).toBe("number");
+      expect(cause).toBeInstanceOf(SyntaxError);
     }
   });
 
@@ -701,7 +803,3 @@ describe("loadConfig", () => {
     );
   });
 });
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}

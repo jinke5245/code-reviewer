@@ -11,11 +11,15 @@ import {
   readBoolean,
   readOptionalString,
   readString,
-} from "./response-utils.js";
+} from "../platform/response-utils.js";
 import {
   formatGitLabTokenEnvCandidates,
   readOptionalGitLabToken,
 } from "./token-env.js";
+import type {
+  ChangedFileDiff,
+  ReviewTargetContext,
+} from "../platform/types.js";
 
 /** GitLab CI environment values required to review a merge request. */
 export type GitLabMergeRequestEnvironment = {
@@ -41,14 +45,7 @@ export type GitLabDiffRefs = {
 };
 
 /** A changed file diff from a GitLab merge request. */
-export type GitLabDiffFile = {
-  oldPath: string;
-  newPath: string;
-  diff: string;
-  newFile: boolean;
-  renamedFile: boolean;
-  deletedFile: boolean;
-};
+export type GitLabDiffFile = ChangedFileDiff;
 
 /** Minimal GitLab API client used to collect merge request review context. */
 export type GitLabMergeRequestClient = {
@@ -63,7 +60,8 @@ export type GitLabMergeRequestClient = {
 };
 
 /** Complete merge request context passed to prompts, tools, and publishers. */
-export type GitLabMergeRequestContext = {
+export type GitLabMergeRequestContext = ReviewTargetContext & {
+  provider: "gitlab";
   source: "gitlab-merge-request";
   gitlab: {
     apiUrl: string;
@@ -72,6 +70,9 @@ export type GitLabMergeRequestContext = {
   };
   mergeRequest: GitLabMergeRequestSummary;
   changedFiles: GitLabDiffFile[];
+  platform: ReviewTargetContext["platform"] & {
+    gitlab: NonNullable<ReviewTargetContext["platform"]["gitlab"]>;
+  };
 };
 
 /** Environment-variable map used when reading GitLab CI values. */
@@ -170,13 +171,27 @@ export async function collectGitLabMergeRequestContext(
 
   return {
     source: "gitlab-merge-request",
+    provider: "gitlab",
     gitlab: {
       apiUrl: environment.apiUrl,
       projectId: environment.projectId,
       mergeRequestIid: environment.mergeRequestIid,
     },
     mergeRequest,
+    pullRequest: {
+      title: mergeRequest.title,
+      description: mergeRequest.description,
+      headSha: mergeRequest.diffRefs.headSha,
+    },
     changedFiles,
+    platform: {
+      gitlab: {
+        apiUrl: environment.apiUrl,
+        projectId: environment.projectId,
+        mergeRequestIid: environment.mergeRequestIid,
+        diffRefs: mergeRequest.diffRefs,
+      },
+    },
   };
 }
 

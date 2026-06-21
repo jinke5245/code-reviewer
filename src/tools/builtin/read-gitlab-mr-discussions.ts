@@ -8,9 +8,11 @@ import {
 import { parseGitLabReference } from "../../gitlab/reference-context.js";
 import {
   assertUnambiguousGitLabTarget,
+  readGitLabToolContext,
   readGitLabToolToken,
 } from "./gitlab-utils.js";
-import type { ToolImplementation, ToolRuntime } from "../types.js";
+import type { GitLabMergeRequestContext } from "../../gitlab/mr-context.js";
+import type { ToolImplementation } from "../types.js";
 
 const inputSchema = z
   .object({
@@ -26,9 +28,10 @@ export const readGitLabMrDiscussionsTool: ToolImplementation = {
   execute(args, runtime) {
     const input = inputSchema.parse(args);
     assertUnambiguousGitLabTarget(input);
-    const target = resolveMergeRequestTarget(input, runtime);
+    const context = readGitLabToolContext(runtime);
+    const target = resolveMergeRequestTarget(input, context);
     const client = createGitLabMergeRequestDiscussionClient({
-      apiUrl: runtime.context.gitlab.apiUrl,
+      apiUrl: context.gitlab.apiUrl,
       token: readGitLabToolToken(runtime),
     });
 
@@ -44,31 +47,28 @@ export const readGitLabMrDiscussionsTool: ToolImplementation = {
 
 function resolveMergeRequestTarget(
   input: z.infer<typeof inputSchema>,
-  runtime: ToolRuntime,
+  context: GitLabMergeRequestContext,
 ): { projectId: string; iid: number } {
   if (input.reference !== undefined) {
-    return resolveMergeRequestReference(input.reference, runtime);
+    return resolveMergeRequestReference(input.reference, context);
   }
 
   if (input.iid !== undefined || input.projectId !== undefined) {
     return {
-      projectId: input.projectId ?? runtime.context.gitlab.projectId,
+      projectId: input.projectId ?? context.gitlab.projectId,
       iid: readRequiredIid(input.iid),
     };
   }
 
   return {
-    projectId: runtime.context.gitlab.projectId,
-    iid: readGitLabIid(
-      runtime.context.gitlab.mergeRequestIid,
-      "merge request IID",
-    ),
+    projectId: context.gitlab.projectId,
+    iid: readGitLabIid(context.gitlab.mergeRequestIid, "merge request IID"),
   };
 }
 
 function resolveMergeRequestReference(
   reference: string,
-  runtime: ToolRuntime,
+  context: GitLabMergeRequestContext,
 ): { projectId: string; iid: number } {
   const parsed = parseGitLabReference(reference);
 
@@ -77,7 +77,7 @@ function resolveMergeRequestReference(
   }
 
   return {
-    projectId: parsed.projectId ?? runtime.context.gitlab.projectId,
+    projectId: parsed.projectId ?? context.gitlab.projectId,
     iid: parsed.iid,
   };
 }

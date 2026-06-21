@@ -27,6 +27,7 @@
     "@commitlint/config-conventional": "^21.0.2",
     "@eslint/js": "^10.0.1",
     "@gitbeaker/rest": "^43.8.0",
+    "@octokit/rest": "^22.0.1",
     "@semantic-release/changelog": "^6.0.3",
     "@semantic-release/commit-analyzer": "^13.0.1",
     "@semantic-release/git": "^10.0.1",
@@ -43,7 +44,6 @@
     "execa": "^9.6.1",
     "handlebars": "^4.7.9",
     "husky": "^9.1.7",
-    "jsonc-parser": "^3.3.1",
     "lint-staged": "^17.0.7",
     "markdownlint-cli2": "^0.22.1",
     "npm-run-all": "^4.1.5",
@@ -78,9 +78,12 @@
   },
   "codereviewer": {
     "review": {
-      "maxRounds": 12
+      "maxRounds": 8
     },
     "gitlab": {
+      "publish": "inline"
+    },
+    "github": {
       "publish": "inline"
     },
     "prompts": {

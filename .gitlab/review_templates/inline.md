@@ -1,7 +1,6 @@
-#### {{finding.title}}
+#### [{{comment.severityLabel}}] {{finding.title}}
 
-- Location: `{{comment.location}}`
-- Impact: {{comment.severityLabel}}
+**Why it matters:**
 
 {{finding.body}}
 

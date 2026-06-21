@@ -11,7 +11,6 @@ import type {
   GitLabTextPosition,
   ReviewPublicationPlan,
 } from "./review-publication-plan.js";
-import { formatReviewFindingSeverity } from "./review-formatting.js";
 import { renderGitLabReviewTemplate } from "./review-template-rendering.js";
 import {
   asArray,
@@ -21,7 +20,8 @@ import {
   readOptionalString,
   readString,
   stableStringify,
-} from "./response-utils.js";
+} from "../platform/response-utils.js";
+import { formatReviewFindingSeverity } from "../review/formatting.js";
 import {
   publishMergeRequestSummaryNote,
   type GitLabMergeRequestNoteClient,

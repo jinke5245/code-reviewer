@@ -196,6 +196,8 @@ const chatCompletionResponseSchema = z
   })
   .loose();
 
+const emptyChoicesResponseMaxRetries = 2;
+
 type ParsedChatCompletionResponse = z.infer<
   typeof chatCompletionResponseSchema
 >;
@@ -244,7 +246,7 @@ export function createOpenAICompatibleReviewModel({
         autoResponseFormat,
         config: resolved,
       });
-      let completion: unknown;
+      let emptyChoicesResponseRetries = 0;
 
       for (;;) {
         const requestBody = createRequestBody(
@@ -253,6 +255,7 @@ export function createOpenAICompatibleReviewModel({
           tools,
           responseFormat,
         );
+        let completion: unknown;
 
         try {
           completion = await requestChatCompletionWithVersionedBaseUrlFallback({
@@ -260,7 +263,6 @@ export function createOpenAICompatibleReviewModel({
             getClient,
             requestBody,
           });
-          break;
         } catch (error) {
           const fallbackResponseFormat = getAutoResponseFormatFallback({
             config: resolved,
@@ -275,12 +277,25 @@ export function createOpenAICompatibleReviewModel({
 
           autoResponseFormat = fallbackResponseFormat;
           responseFormat = fallbackResponseFormat;
+          continue;
+        }
+
+        try {
+          const parsedBody = parseChatCompletionResponse(completion);
+
+          return toReviewModelResponse(parsedBody.choices[0]?.message);
+        } catch (error) {
+          if (
+            isEmptyChoicesResponse(completion) &&
+            emptyChoicesResponseRetries < emptyChoicesResponseMaxRetries
+          ) {
+            emptyChoicesResponseRetries += 1;
+            continue;
+          }
+
+          throw error;
         }
       }
-
-      const parsedBody = parseChatCompletionResponse(completion);
-
-      return toReviewModelResponse(parsedBody.choices[0]?.message);
     },
   };
 }
@@ -722,6 +737,20 @@ function parseChatCompletionResponse(
 
     throw error;
   }
+}
+
+function isEmptyChoicesResponse(rawBody: unknown): boolean {
+  if (
+    typeof rawBody !== "object" ||
+    rawBody === null ||
+    Array.isArray(rawBody)
+  ) {
+    return false;
+  }
+
+  const choices = (rawBody as Record<string, unknown>).choices;
+
+  return Array.isArray(choices) && choices.length === 0;
 }
 
 function toReviewModelResponse(

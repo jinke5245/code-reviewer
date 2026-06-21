@@ -537,6 +537,27 @@ describe("publishMergeRequestInlineDiscussions", () => {
     expect(body).toContain("Unknown: {{{finding.titel}}}");
   });
 
+  it("preserves unknown single-segment template placeholders", () => {
+    const context = createContext();
+    const finding = createFinding();
+    const position = mapFindingToDiffPosition({
+      context,
+      finding,
+    });
+
+    if (position === undefined) {
+      throw new Error("Expected finding to map to a diff position");
+    }
+
+    const body = createInlineDiscussionBody({
+      finding,
+      position,
+      template: ["Unknown: {{foo}}", "{{comment.fingerprint}}"].join("\n"),
+    });
+
+    expect(body).toContain("Unknown: {{foo}}");
+  });
+
   it("publishes mapped findings and skips existing fingerprints", async () => {
     const report = createReport({
       findings: [
@@ -1323,6 +1344,7 @@ function createContext(
 ): GitLabMergeRequestContext {
   return {
     source: "gitlab-merge-request",
+    provider: "gitlab",
     gitlab: {
       apiUrl: "https://gitlab.example.test/api/v4",
       projectId: "123",
@@ -1337,7 +1359,24 @@ function createContext(
         headSha: "head-sha",
       },
     },
+    pullRequest: {
+      title: "Add inline review",
+      description: "Publish findings as discussions.",
+      headSha: "head-sha",
+    },
     changedFiles,
+    platform: {
+      gitlab: {
+        apiUrl: "https://gitlab.example.test/api/v4",
+        projectId: "123",
+        mergeRequestIid: "9",
+        diffRefs: {
+          baseSha: "base-sha",
+          startSha: "start-sha",
+          headSha: "head-sha",
+        },
+      },
+    },
   };
 }
 

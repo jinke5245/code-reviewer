@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { parseGitLabDiffLines } from "../../gitlab/diff-lines.js";
+import { parseUnifiedDiffLines } from "../../platform/diff-lines.js";
 import { assertRepositoryRelativePath } from "../repository-path.js";
 import type { ToolImplementation } from "../types.js";
 
@@ -27,7 +27,7 @@ export const readDiffTool: ToolImplementation = {
       oldPath: changedFile.oldPath,
       newPath: changedFile.newPath,
       diff: changedFile.diff,
-      lines: parseGitLabDiffLines(changedFile.diff),
+      lines: parseUnifiedDiffLines(changedFile.diff),
     });
   },
 };
