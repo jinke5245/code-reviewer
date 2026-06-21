@@ -5,6 +5,7 @@ import {
   createGitLabMergeRequestClient,
   readGitLabMergeRequestEnvironment,
   type GitLabMergeRequestClient,
+  type GitLabMergeRequestContext,
 } from "../../src/gitlab/mr-context.js";
 import {
   readGitLabIid,
@@ -179,6 +180,14 @@ describe("collectGitLabMergeRequestContext", () => {
       client,
     });
 
+    expect(readRequiredGitLabContextFields(context)).toMatchObject({
+      provider: "gitlab",
+      platformGitlab: {
+        apiUrl: "https://gitlab.example.test/api/v4",
+        projectId: "123",
+        mergeRequestIid: "42",
+      },
+    });
     expect(calls).toEqual(["mr:123:42", "diffs:123:42"]);
     expect(context).toEqual({
       source: "gitlab-merge-request",
@@ -227,6 +236,16 @@ describe("collectGitLabMergeRequestContext", () => {
     });
   });
 });
+
+function readRequiredGitLabContextFields(context: GitLabMergeRequestContext): {
+  platformGitlab: NonNullable<GitLabMergeRequestContext["platform"]["gitlab"]>;
+  provider: "gitlab";
+} {
+  return {
+    platformGitlab: context.platform.gitlab,
+    provider: context.provider,
+  };
+}
 
 describe("createGitLabMergeRequestClient", () => {
   it("uses GitBeaker to fetch merge request metadata and diffs", async () => {

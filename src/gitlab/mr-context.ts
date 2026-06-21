@@ -61,6 +61,7 @@ export type GitLabMergeRequestClient = {
 
 /** Complete merge request context passed to prompts, tools, and publishers. */
 export type GitLabMergeRequestContext = ReviewTargetContext & {
+  provider: "gitlab";
   source: "gitlab-merge-request";
   gitlab: {
     apiUrl: string;
@@ -69,6 +70,9 @@ export type GitLabMergeRequestContext = ReviewTargetContext & {
   };
   mergeRequest: GitLabMergeRequestSummary;
   changedFiles: GitLabDiffFile[];
+  platform: ReviewTargetContext["platform"] & {
+    gitlab: NonNullable<ReviewTargetContext["platform"]["gitlab"]>;
+  };
 };
 
 /** Environment-variable map used when reading GitLab CI values. */
