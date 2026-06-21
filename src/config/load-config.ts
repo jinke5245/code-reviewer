@@ -290,6 +290,7 @@ function stripJsonComments(contents: string): string {
 
     if (char === "/" && nextChar === "*") {
       index += 2;
+      result += " ";
       while (
         index < contents.length &&
         !(contents[index] === "*" && contents[index + 1] === "/")

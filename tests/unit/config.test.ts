@@ -196,6 +196,26 @@ describe("loadConfig", () => {
     ]);
   });
 
+  it("treats empty JSONC block comments as token separators", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "codereviewer-config-"));
+
+    await writeFile(
+      join(cwd, ".codereviewer.jsonc"),
+      [
+        "{",
+        '  "review": {',
+        '    "maxRounds": 1/**/2',
+        "  }",
+        "}",
+        "",
+      ].join("\n"),
+    );
+
+    await expect(loadConfig({ cwd })).rejects.toThrow(
+      /Cannot parse config .*\.codereviewer\.jsonc/,
+    );
+  });
+
   it("keeps YAML defaults ahead of JSON defaults", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "codereviewer-config-"));
 
