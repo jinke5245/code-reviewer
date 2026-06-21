@@ -53,6 +53,14 @@ type PositionCandidate = {
   newLine?: number;
 };
 
+type GitHubPullRequestContext = ReviewTargetContext & {
+  provider: "github";
+  source: "github-pull-request";
+  platform: ReviewTargetContext["platform"] & {
+    github: NonNullable<ReviewTargetContext["platform"]["github"]>;
+  };
+};
+
 const severityRank: Record<ReviewFindingSeverity, number> = {
   low: 1,
   medium: 2,
@@ -69,11 +77,15 @@ export function createGitHubReviewPublicationPlan({
   publishMode: ReviewPublishMode;
   report: ReviewReport;
 }): GitHubReviewPublicationPlan {
+  const githubContext = readGitHubPullRequestContext(context);
   const inlineFindings: GitHubInlineFinding[] = [];
   const unmappedFindings: ReviewFinding[] = [];
 
   for (const finding of report.findings) {
-    const position = mapFindingToGitHubPosition({ context, finding });
+    const position = mapFindingToGitHubPosition({
+      context: githubContext,
+      finding,
+    });
 
     if (position === undefined) {
       unmappedFindings.push(finding);
@@ -88,8 +100,8 @@ export function createGitHubReviewPublicationPlan({
   return {
     overview: {
       provider: "github",
-      commit: context.pullRequest.headSha,
-      changedFiles: context.changedFiles.length,
+      commit: githubContext.pullRequest.headSha,
+      changedFiles: githubContext.changedFiles.length,
       findings: report.findings.length,
       highestSeverity: findHighestSeverity(report.findings),
       inlineFindings: inlineFindings.length,
@@ -114,7 +126,8 @@ export function mapFindingToGitHubPosition({
   context: ReviewTargetContext;
   finding: ReviewFinding;
 }): GitHubReviewCommentPosition | undefined {
-  const changedFile = context.changedFiles.find(
+  const githubContext = readGitHubPullRequestContext(context);
+  const changedFile = githubContext.changedFiles.find(
     (file) => file.newPath === finding.path || file.oldPath === finding.path,
   );
 
@@ -164,19 +177,33 @@ export function mapFindingToGitHubPosition({
 
   return finding.startLine === finding.endLine
     ? {
-        commitId: context.pullRequest.headSha,
+        commitId: githubContext.pullRequest.headSha,
         path: changedFile.newPath,
         side: githubSide,
         line: endLine,
       }
     : {
-        commitId: context.pullRequest.headSha,
+        commitId: githubContext.pullRequest.headSha,
         path: changedFile.newPath,
         side: githubSide,
         startLine,
         startSide: githubSide,
         line: endLine,
       };
+}
+
+function readGitHubPullRequestContext(
+  context: ReviewTargetContext,
+): GitHubPullRequestContext {
+  if (
+    context.provider !== "github" ||
+    context.source !== "github-pull-request" ||
+    context.platform.github === undefined
+  ) {
+    throw new Error("Expected GitHub pull request context");
+  }
+
+  return context as GitHubPullRequestContext;
 }
 
 function collectPositionCandidates({

@@ -5,6 +5,16 @@ import type { ReviewTargetContext } from "../../src/platform/types.js";
 import type { ReviewFinding, ReviewReport } from "../../src/review/report.js";
 
 describe("createGitHubReviewPublicationPlan", () => {
+  it("rejects non-GitHub review contexts", () => {
+    expect(() =>
+      createGitHubReviewPublicationPlan({
+        context: createGitLabContext(),
+        publishMode: "inline",
+        report: createReport([]),
+      }),
+    ).toThrow(/Expected GitHub pull request context/);
+  });
+
   it("maps added, deleted, and context lines to GitHub review comment positions", () => {
     const context = createContext([
       {
@@ -228,6 +238,31 @@ function createContext(
         owner: "acme",
         repo: "repo",
         pullNumber: 12,
+      },
+    },
+  };
+}
+
+function createGitLabContext(): ReviewTargetContext {
+  return {
+    source: "gitlab-merge-request",
+    provider: "gitlab",
+    pullRequest: {
+      title: "Add GitHub publishing",
+      description: "Publish review comments on GitHub.",
+      headSha: "gitlab-head-sha",
+    },
+    changedFiles: [],
+    platform: {
+      gitlab: {
+        apiUrl: "https://gitlab.example.test/api/v4",
+        projectId: "123",
+        mergeRequestIid: "42",
+        diffRefs: {
+          baseSha: "base-sha",
+          startSha: "start-sha",
+          headSha: "gitlab-head-sha",
+        },
       },
     },
   };
