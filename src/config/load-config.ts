@@ -226,15 +226,15 @@ function parseJsonConfig(configPath: string, contents: string): unknown {
 }
 
 function parseJsoncConfig(configPath: string, contents: string): unknown {
-  const normalizedContents = removeJsonTrailingCommas(
-    stripJsonComments(contents),
-  );
-
-  if (normalizedContents.trim().length === 0) {
-    return {};
-  }
-
   try {
+    const normalizedContents = removeJsonTrailingCommas(
+      stripJsonComments(contents),
+    );
+
+    if (normalizedContents.trim().length === 0) {
+      return {};
+    }
+
     return JSON.parse(normalizedContents) as unknown;
   } catch (error) {
     throw new Error(
@@ -299,9 +299,11 @@ function stripJsonComments(contents: string): string {
         index += 1;
       }
 
-      if (index < contents.length) {
-        index += 1;
+      if (index >= contents.length) {
+        throw new Error("Unterminated JSONC block comment");
       }
+
+      index += 1;
       continue;
     }
 
