@@ -1,3 +1,10 @@
+# [0.2.0](https://github.com/jinke5245/code-reviewer/compare/0.1.0...0.2.0) (2026-06-22)
+
+
+### Features
+
+* support GitHub pull requests ([#12](https://github.com/jinke5245/code-reviewer/issues/12)) ([79c38aa](https://github.com/jinke5245/code-reviewer/commit/79c38aa554c4deb63d50c659dce3d2766f3beba9))
+
 # [0.1.0](https://github.com/jinke5245/code-reviewer/compare/0.0.0...0.1.0) (2026-06-17)
 
 
