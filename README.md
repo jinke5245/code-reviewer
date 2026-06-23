@@ -1,5 +1,7 @@
 # Code Reviewer
 
+[简体中文](README.zh.md)
+
 Code Reviewer is an early-stage AI-assisted code review CLI. It aims to provide
 a review experience similar to GitHub Copilot Code Review while keeping the core
 review engine portable across code hosting platforms.
